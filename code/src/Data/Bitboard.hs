@@ -2,6 +2,8 @@
 Module      : Data.Bitboard
 Description :
 -}
+
+{-# LANGUAGE FlexibleContexts #-}
 module Data.Bitboard
   ( encodeSquare, encodeSquares, encodeSquaresBy
   , decodeSquares
@@ -10,11 +12,13 @@ module Data.Bitboard
   , lineX, lineY, lineU, lineV
   , bitUnion, bitIntersect
   , limits, hasSquare
+  , toggleSquare
   ) where
 
 import Data.Square
 
-import Data.Array.Unboxed
+import Data.Array.IArray
+import Data.Array.Unboxed (UArray)
 import Data.Bits
 import Data.Foldable
 import Data.Functor
@@ -35,10 +39,10 @@ decodeSquares :: Word64 -> [Square]
 decodeSquares w = filter (testBit w . fromEnum) squaresList
 
 -- | Building Arrays of Bitboards
-buildWith :: (Square -> [Square]) -> UArray Square Word64
+buildWith :: (IArray a Word64) => (Square -> [Square]) -> a Square Word64
 buildWith f = buildSquaresArray (encodeSquares  . f)
 
-buildBy :: (Square -> Square -> Bool) -> UArray Square Word64
+buildBy :: (IArray a Word64) => (Square -> Square -> Bool) -> a Square Word64
 buildBy pred = buildSquaresArray (\ sq -> encodeSquaresBy (pred sq))
 
 -- | Primitive Bitboards
@@ -57,16 +61,18 @@ lineU = buildBy ((==) `on` coordU)
 lineV :: UArray Square Word64
 lineV = buildBy ((==) `on` coordV)
 
--- |
+-- | Utility
 bitUnion :: (Foldable t) => t Word64 -> Word64
 bitUnion ws = foldl' (.|.) zeroBits ws
 
 bitIntersect :: (Foldable t) => t Word64 -> Word64
 bitIntersect ws = foldl' (.&.) (complement zeroBits) ws
 
--- | Utility
 limits :: Word64 -> (Int, Int)
 limits w = (countTrailingZeros w, 63 - countLeadingZeros w)
 
 hasSquare :: Word64 -> Square -> Bool
 hasSquare w sq = testBit w $ fromEnum sq
+
+toggleSquare :: Word64 -> Square -> Word64
+toggleSquare w sq = w `complementBit` fromEnum sq
