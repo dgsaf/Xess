@@ -1,5 +1,5 @@
 {- |
-Module      :
+Module      : Data.Square
 Description :
 -}
 module Data.Square
