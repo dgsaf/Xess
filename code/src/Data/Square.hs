@@ -9,8 +9,10 @@ module Data.Square
   , coordUV, coordU, coordV
   , translateXY, translationsXY
   , squaresList
+  , buildSquaresArray
   ) where
 
+import Data.Array.IArray
 import Data.Ix
 import Data.Maybe
 import Data.Tuple
@@ -74,3 +76,6 @@ translationsXY sq trs = mapMaybe (translateXY sq) trs
 -- | Utility
 squaresList :: [Square]
 squaresList = [minBound .. maxBound]
+
+buildSquaresArray :: (IArray a e) => (Square -> e) -> a Square e
+buildSquaresArray f = listArray (minBound, maxBound) $ fmap f squaresList

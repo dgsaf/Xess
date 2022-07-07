@@ -5,7 +5,7 @@ Description :
 module Data.Bitboard
   ( encodeSquare, encodeSquares, encodeSquaresBy
   , decodeSquares
-  , build, buildWith, buildBy
+  , buildWith, buildBy
   , square
   , lineX, lineY, lineU, lineV
   , bitUnion, bitIntersect
@@ -35,14 +35,11 @@ decodeSquares :: Word64 -> [Square]
 decodeSquares w = filter (testBit w . fromEnum) squaresList
 
 -- | Building Arrays of Bitboards
-build :: (Square -> Word64) -> UArray Square Word64
-build f = listArray (minBound, maxBound) $ fmap f squaresList
-
 buildWith :: (Square -> [Square]) -> UArray Square Word64
-buildWith f = build (encodeSquares  . f)
+buildWith f = buildSquaresArray (encodeSquares  . f)
 
 buildBy :: (Square -> Square -> Bool) -> UArray Square Word64
-buildBy pred = build (\ sq -> encodeSquaresBy (pred sq))
+buildBy pred = buildSquaresArray (\ sq -> encodeSquaresBy (pred sq))
 
 -- | Primitive Bitboards
 square :: UArray Square Word64
