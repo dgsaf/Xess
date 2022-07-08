@@ -10,9 +10,12 @@ module Data.Square
   , translateXY, translationsXY
   , enumSquares
   , buildSquaresArray
+  , collinear
   ) where
 
 import Data.Array.IArray
+import Data.Foldable
+import Data.Function
 import Data.Ix
 import Data.Maybe
 import Data.Tuple
@@ -79,3 +82,8 @@ enumSquares = range (minBound, maxBound)
 
 buildSquaresArray :: (IArray a e) => (Square -> e) -> a Square e
 buildSquaresArray f = listArray (minBound, maxBound) $ fmap f enumSquares
+
+collinear :: [Square] -> Bool
+collinear []  = False
+collinear sqs = any (\ f -> all (\ sq' -> f (head sqs) == f sq') sqs)
+                $ [coordX, coordY, coordU, coordV]

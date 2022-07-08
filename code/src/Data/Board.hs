@@ -9,16 +9,20 @@ module Data.Board
   , toggle, insertPiece, removePiece, clearSquare
 
   , piece, colour, occupied
-  , visibleB, visibleR, visibleQ
+  , slideX, slideY, slideU, slideV
   , hostile, engageable, unoccupied
   , pieceAt, (!?), locateKing
 
   , active
   , attacksFrom, attacksTo, attacking, attacked
+  , sightedX, sightedY, sightedU, sightedV
+  , xrayX, xrayY, xrayU, xrayV
   , scope
   , checks, inCheck
 
-  , quietP, activeP, activeN, activeK
+  , quietP
+  , activeP, activeN, activeK
+  , activeB, activeR, activeQ
 
   , toPieceList, fromPieceList
   , toArray, fromArray
@@ -176,19 +180,18 @@ colour b Black = _black b
 occupied :: Board -> Word64
 occupied b = view $ _rotOccupied b
 
--- | Visibility
-visibleB :: Board -> Square -> Word64
-visibleB b sq = (visibleU rOcc sq .|. visibleV rOcc sq) `clearBit` fromEnum sq
-  where
-    rOcc = _rotOccupied b
+-- | Sliding
+slideX :: Board -> Square -> Word64
+slideX b sq = visibleX (_rotOccupied b) sq `clearBit` fromEnum sq
 
-visibleR :: Board -> Square -> Word64
-visibleR b sq = (visibleX rOcc sq .|. visibleY rOcc sq) `clearBit` fromEnum sq
-  where
-    rOcc = _rotOccupied b
+slideY :: Board -> Square -> Word64
+slideY b sq = visibleY (_rotOccupied b) sq `clearBit` fromEnum sq
 
-visibleQ :: Board -> Square -> Word64
-visibleQ b sq = visibleB b sq .|. visibleR b sq
+slideU :: Board -> Square -> Word64
+slideU b sq = visibleU (_rotOccupied b) sq `clearBit` fromEnum sq
+
+slideV :: Board -> Square -> Word64
+slideV b sq = visibleV (_rotOccupied b) sq `clearBit` fromEnum sq
 
 -- | Derived Properties
 hostile :: Board -> Colour -> Word64
@@ -219,9 +222,9 @@ locateKing b c
 active :: Board -> Square -> (Colour, Piece) -> Word64
 active b sq (c, P) = activeP c ! sq
 active b sq (c, N) = activeN ! sq
-active b sq (c, B) = visibleB b sq
-active b sq (c, R) = visibleR b sq
-active b sq (c, Q) = visibleQ b sq
+active b sq (c, B) = activeB b sq
+active b sq (c, R) = activeR b sq
+active b sq (c, Q) = activeQ b sq
 active b sq (c, K) = activeK ! sq
 
 attacksFrom :: Board -> Square -> Word64
@@ -237,19 +240,50 @@ attacked :: Board -> Colour -> Word64
 attacked b c = attacking b $ opposite c
 
 -- | Xray
+sightedX :: Board -> Square -> [Square]
+sightedX b sq = decodeSquares $ slideX b sq .&. occupied b
+
+sightedY :: Board -> Square -> [Square]
+sightedY b sq = decodeSquares $ slideY b sq .&. occupied b
+
+sightedU :: Board -> Square -> [Square]
+sightedU b sq = decodeSquares $ slideU b sq .&. occupied b
+
+sightedV :: Board -> Square -> [Square]
+sightedV b sq = decodeSquares $ slideV b sq .&. occupied b
+
+xrayWith :: Board -> Square -> (Board -> Square -> [Square]) -> [(Square, Square)]
+xrayWith b sq sight
+  = concat $ fmap (\ sq' -> zip (repeat sq') $ g sq') $ sight b sq
+  where
+    g sq' = filter (\ sq'' -> compare sq sq' == compare sq' sq'') $ sight b sq'
+
+xrayX :: Board -> Square -> [(Square, Square)]
+xrayX b sq = xrayWith b sq sightedX
+
+xrayY :: Board -> Square -> [(Square, Square)]
+xrayY b sq = xrayWith b sq sightedY
+
+xrayU :: Board -> Square -> [(Square, Square)]
+xrayU b sq = xrayWith b sq sightedU
+
+xrayV :: Board -> Square -> [(Square, Square)]
+xrayV b sq = xrayWith b sq sightedV
 
 -- | Move
 scope :: Board -> Square -> (Colour, Piece) -> Word64
 scope b sq (c, P) = (activeP c ! sq .&. hostile b c)
-                    .|. (quietP c ! sq .&. unoccupied b .&. visibleR b sq)
+                    .|. (quietP c ! sq .&. unoccupied b .&. activeR b sq)
 scope b sq (c, p) = active b sq (c, p) .&. engageable b c
 
--- | Check, Pin
+-- | Check
 checks :: Board -> Colour -> Word64
 checks b c = attacksTo b (locateKing b c) .&. hostile b c
 
 inCheck :: Board -> Colour -> Bool
 inCheck b c = checks b c /= zeroBits
+
+-- | Pin
 
 -- | Static
 quietP :: Colour -> UArray Square Word64
@@ -279,6 +313,14 @@ activeK = buildWith (translationsXY ts)
     ts = [(i, j) | i <- [-1 .. 1], j <- [-1 .. 1], (i, j) /= (0, 0)]
 
 -- | Slide
+activeB :: Board -> Square -> Word64
+activeB b sq = slideU b sq .|. slideV b sq
+
+activeR :: Board -> Square -> Word64
+activeR b sq = slideX b sq .|. slideY b sq
+
+activeQ :: Board -> Square -> Word64
+activeQ b sq = activeB b sq .|. activeR b sq
 
 -- | Representations
 toPieceList :: Board -> [(Colour, Piece, Square)]
