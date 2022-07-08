@@ -7,10 +7,21 @@ module Data.Board
   ( Board
   , emptyBoard, defaultBoard
   , toggle, insertPiece, removePiece, clearSquare
+
   , piece, colour, occupied
   , visibleB, visibleR, visibleQ
   , hostile, engageable, unoccupied
   , pieceAt, (!?), locateKing
+
+  , active
+  , attacksFrom, attacksTo, attacking, attacked
+  , scope
+  , checks, inCheck
+
+  , quietP, activeP, activeN, activeK
+
+  , toPieceList, fromPieceList
+  , toArray, fromArray
   ) where
 
 import Data.Bitboard
@@ -204,18 +215,85 @@ locateKing b c
   where
     n = countTrailingZeros $ piece b (c, K)
 
--- | Scope
-
 -- | Attack
+active :: Board -> Square -> (Colour, Piece) -> Word64
+active b sq (c, P) = activeP c ! sq
+active b sq (c, N) = activeN ! sq
+active b sq (c, B) = visibleB b sq
+active b sq (c, R) = visibleR b sq
+active b sq (c, Q) = visibleQ b sq
+active b sq (c, K) = activeK ! sq
+
+attacksFrom :: Board -> Square -> Word64
+attacksFrom b sq = maybe zeroBits (active b sq) (b !? sq)
+
+attacksTo :: Board -> Square -> Word64
+attacksTo b sq = encodeSquaresBy (\ sq' -> hasSquare (attacksFrom b sq') sq)
+
+attacking :: Board -> Colour -> Word64
+attacking b c = bitUnion $ fmap (attacksFrom b) $ decodeSquares $ colour b c
+
+attacked :: Board -> Colour -> Word64
+attacked b c = attacking b $ opposite c
 
 -- | Xray
 
 -- | Move
+scope :: Board -> Square -> (Colour, Piece) -> Word64
+scope b sq (c, P) = (activeP c ! sq .&. hostile b c)
+                    .|. (quietP c ! sq .&. unoccupied b .&. visibleR b sq)
+scope b sq (c, p) = active b sq (c, p) .&. engageable b c
 
 -- | Check, Pin
+checks :: Board -> Colour -> Word64
+checks b c = attacksTo b (locateKing b c) .&. hostile b c
+
+inCheck :: Board -> Colour -> Bool
+inCheck b c = checks b c /= zeroBits
 
 -- | Static
+quietP :: Colour -> UArray Square Word64
+quietP c = buildWith (\ sq -> translationsXY (ts c sq) sq)
+  where
+    ts White sq
+      | coordY sq == 1 = [(0, 1), (0, 2)]
+      | otherwise      = [(0, 1)]
+    ts Black sq
+      | coordY sq == 6 = [(0, -1), (0, -2)]
+      | otherwise      = [(0, -1)]
+
+activeP :: Colour -> UArray Square Word64
+activeP c = buildWith (translationsXY (ts c))
+  where
+    ts White = [(-1, 1), (1, 1)]
+    ts Black = [(-1, -1), (1, -1)]
+
+activeN :: UArray Square Word64
+activeN = buildWith (translationsXY ts)
+  where
+    ts = [(i, j) | i <- [-2, -1, 1, 2], j <- [-2, -1, 1, 2] , abs i /= abs j]
+
+activeK :: UArray Square Word64
+activeK = buildWith (translationsXY ts)
+  where
+    ts = [(i, j) | i <- [-1 .. 1], j <- [-1 .. 1], (i, j) /= (0, 0)]
 
 -- | Slide
 
 -- | Representations
+toPieceList :: Board -> [(Colour, Piece, Square)]
+toPieceList b =
+  concat $ fmap
+    (\ (c, p) -> fmap (\ sq -> (c, p, sq)) $ decodeSquares $ piece b (c, p))
+    $ range (minBound, maxBound)
+
+fromPieceList :: [(Colour, Piece, Square)] -> Board
+fromPieceList pl = foldl' (\ b (c, p, sq) -> toggle (c, p) sq b) emptyBoard pl
+
+toArray :: Board -> Array Square (Maybe (Colour, Piece))
+toArray b = buildSquaresArray (b !?)
+
+fromArray :: Array Square (Maybe (Colour, Piece)) -> Board
+fromArray arr =
+  fromPieceList
+  $ mapMaybe (\ sq -> fmap (\ (c, p) -> (c, p, sq)) (arr ! sq)) enumSquares

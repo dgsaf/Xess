@@ -11,6 +11,8 @@ module UI.Display
 
 import Data.Bitboard
 import Data.Board
+import Data.Colour
+import Data.Piece
 import Data.Rotated
 import Data.Square
 import UI.AN

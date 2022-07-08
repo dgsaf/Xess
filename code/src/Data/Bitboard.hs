@@ -5,7 +5,7 @@ Module      : Data.Bitboard
 Description :
 -}
 module Data.Bitboard
-  ( encodeSquare, encodeSquares, encodeSquaresBy, encodeShifts
+  ( encodeSquare, encodeSquares, encodeSquaresBy
   , decodeSquares
   , buildWith, buildBy
   , square
@@ -34,9 +34,6 @@ encodeSquares sqs = sum $ fmap encodeSquare sqs
 
 encodeSquaresBy :: (Square -> Bool) -> Word64
 encodeSquaresBy pred = encodeSquares $ filter pred enumSquares
-
-encodeShifts :: [Int] -> (Square -> Word64)
-encodeShifts is = \ sq -> bitUnion $ fmap (shift (encodeSquare sq)) is
 
 decodeSquares :: Word64 -> [Square]
 decodeSquares w = filter (testBit w . fromEnum) enumSquares

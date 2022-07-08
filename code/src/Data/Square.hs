@@ -65,13 +65,13 @@ coordV :: Square -> Int
 coordV = snd . coordUV
 
 -- | Coordinate Translation
-translateXY :: Square -> (Int, Int) -> Maybe Square
-translateXY sq (i, j) = mkSquareXY $ (x + i, y + j)
+translateXY :: (Int, Int) -> Square -> Maybe Square
+translateXY (i, j) sq = mkSquareXY $ (x + i, y + j)
   where
     (x, y) = coordXY sq
 
-translationsXY :: Square -> [(Int, Int)] -> [Square]
-translationsXY sq trs = mapMaybe (translateXY sq) trs
+translationsXY :: [(Int, Int)] -> Square -> [Square]
+translationsXY ts sq = mapMaybe (\t -> translateXY t sq) ts
 
 -- | Utility
 enumSquares :: [Square]
