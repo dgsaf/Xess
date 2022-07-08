@@ -12,17 +12,21 @@ module Data.Board
   , slideX, slideY, slideU, slideV
   , hostile, engageable, unoccupied
   , pieceAt, (!?), locateKing
-
-  , active
-  , attacksFrom, attacksTo, attacking, attacked
-  , sightedX, sightedY, sightedU, sightedV
-  , xrayX, xrayY, xrayU, xrayV
-  , scope
-  , checks, inCheck
+  , areFriendly, areHostile
 
   , quietP
   , activeP, activeN, activeK
   , activeB, activeR, activeQ
+
+  , active, scope
+  , attacksFrom, attacksTo, attacking, attacked
+
+  , sightedX, sightedY, sightedU, sightedV
+  , xrayX, xrayY, xrayU, xrayV
+  , xraying, xrayed
+
+  , checks, inCheck
+  , checkMask, kingMask, pinMasks
 
   , toPieceList, fromPieceList
   , toArray, fromArray
@@ -218,6 +222,57 @@ locateKing b c
   where
     n = countTrailingZeros $ piece b (c, K)
 
+areFriendly :: Board -> Square -> Square -> Bool
+areFriendly b sq sq' = fromMaybe False $
+  do
+    (c, p) <- b !? sq
+    (c', p') <- b !? sq'
+    return (c == c')
+
+areHostile :: Board -> Square -> Square -> Bool
+areHostile b sq sq' = fromMaybe False $
+  do
+    (c, p) <- b !? sq
+    (c', p') <- b !? sq'
+    return (c /= c')
+
+-- | Static
+quietP :: Colour -> UArray Square Word64
+quietP c = buildWith (\ sq -> translationsXY (ts c sq) sq)
+  where
+    ts White sq
+      | coordY sq == 1 = [(0, 1), (0, 2)]
+      | otherwise      = [(0, 1)]
+    ts Black sq
+      | coordY sq == 6 = [(0, -1), (0, -2)]
+      | otherwise      = [(0, -1)]
+
+activeP :: Colour -> UArray Square Word64
+activeP c = buildWith (translationsXY (ts c))
+  where
+    ts White = [(-1, 1), (1, 1)]
+    ts Black = [(-1, -1), (1, -1)]
+
+activeN :: UArray Square Word64
+activeN = buildWith (translationsXY ts)
+  where
+    ts = [(i, j) | i <- [-2, -1, 1, 2], j <- [-2, -1, 1, 2] , abs i /= abs j]
+
+activeK :: UArray Square Word64
+activeK = buildWith (translationsXY ts)
+  where
+    ts = [(i, j) | i <- [-1 .. 1], j <- [-1 .. 1], (i, j) /= (0, 0)]
+
+-- | Slide
+activeB :: Board -> Square -> Word64
+activeB b sq = slideU b sq .|. slideV b sq
+
+activeR :: Board -> Square -> Word64
+activeR b sq = slideX b sq .|. slideY b sq
+
+activeQ :: Board -> Square -> Word64
+activeQ b sq = activeB b sq .|. activeR b sq
+
 -- | Attack
 active :: Board -> Square -> (Colour, Piece) -> Word64
 active b sq (c, P) = activeP c ! sq
@@ -226,6 +281,11 @@ active b sq (c, B) = activeB b sq
 active b sq (c, R) = activeR b sq
 active b sq (c, Q) = activeQ b sq
 active b sq (c, K) = activeK ! sq
+
+scope :: Board -> Square -> (Colour, Piece) -> Word64
+scope b sq (c, P) = (activeP c ! sq .&. hostile b c)
+                    .|. (quietP c ! sq .&. unoccupied b .&. activeR b sq)
+scope b sq (c, p) = active b sq (c, p) .&. engageable b c
 
 attacksFrom :: Board -> Square -> Word64
 attacksFrom b sq = maybe zeroBits (active b sq) (b !? sq)
@@ -270,57 +330,53 @@ xrayU b sq = xrayWith b sq sightedU
 xrayV :: Board -> Square -> [(Square, Square)]
 xrayV b sq = xrayWith b sq sightedV
 
--- | Move
-scope :: Board -> Square -> (Colour, Piece) -> Word64
-scope b sq (c, P) = (activeP c ! sq .&. hostile b c)
-                    .|. (quietP c ! sq .&. unoccupied b .&. activeR b sq)
-scope b sq (c, p) = active b sq (c, p) .&. engageable b c
+xraying :: Board -> Square -> [(Square, Square)]
+xraying b sq = maybe [] (f . snd) (b !? sq)
+  where
+    f B = xrayU b sq ++ xrayV b sq
+    f R = xrayX b sq ++ xrayY b sq
+    f Q = xrayU b sq ++ xrayV b sq ++ xrayX b sq ++ xrayY b sq
+    f _ = []
 
--- | Check
+xrayed :: Board -> Square -> [(Square, Square)]
+xrayed b sq = xrayedB ++ xrayedR
+  where
+    xrayedB =
+      filter
+        (\ (sq', sq'') -> maybe False (isSlideB . snd) (b !? sq''))
+        $ xrayU b sq ++ xrayV b sq
+    xrayedR =
+      filter
+        (\ (sq', sq'') -> maybe False (isSlideR . snd) (b !? sq''))
+        $ xrayX b sq ++ xrayY b sq
+
+-- | Check, Pin
 checks :: Board -> Colour -> Word64
 checks b c = attacksTo b (locateKing b c) .&. hostile b c
 
 inCheck :: Board -> Colour -> Bool
 inCheck b c = checks b c /= zeroBits
 
--- | Pin
-
--- | Static
-quietP :: Colour -> UArray Square Word64
-quietP c = buildWith (\ sq -> translationsXY (ts c sq) sq)
+checkMask :: Board -> Colour -> Word64
+checkMask b c =
+  bitIntersect
+  $ fmap (\ sq -> mask sq $ snd . fromJust $ b !? sq)
+  $ decodeSquares $ checks b c
   where
-    ts White sq
-      | coordY sq == 1 = [(0, 1), (0, 2)]
-      | otherwise      = [(0, 1)]
-    ts Black sq
-      | coordY sq == 6 = [(0, -1), (0, -2)]
-      | otherwise      = [(0, -1)]
+    sqK = locateKing b c
+    mask sq N = square ! sq
+    mask sq _ = lineBetween sqK sq `clearBit` fromEnum sqK
 
-activeP :: Colour -> UArray Square Word64
-activeP c = buildWith (translationsXY (ts c))
+kingMask :: Board -> Colour -> Word64
+kingMask b c = complement $ attacked (clearSquare (locateKing b c) b) c
+
+pinMasks :: Board -> Colour -> [(Square, Word64)]
+pinMasks b c =
+  fmap (\ (sq, sq') -> (sq, lineBetween sqK sq' `clearBit` fromEnum sqK))
+  $ filter (\ (sq, sq') -> areFriendly b sqK sq && areHostile b sqK sq')
+  $ xrayed b sqK
   where
-    ts White = [(-1, 1), (1, 1)]
-    ts Black = [(-1, -1), (1, -1)]
-
-activeN :: UArray Square Word64
-activeN = buildWith (translationsXY ts)
-  where
-    ts = [(i, j) | i <- [-2, -1, 1, 2], j <- [-2, -1, 1, 2] , abs i /= abs j]
-
-activeK :: UArray Square Word64
-activeK = buildWith (translationsXY ts)
-  where
-    ts = [(i, j) | i <- [-1 .. 1], j <- [-1 .. 1], (i, j) /= (0, 0)]
-
--- | Slide
-activeB :: Board -> Square -> Word64
-activeB b sq = slideU b sq .|. slideV b sq
-
-activeR :: Board -> Square -> Word64
-activeR b sq = slideX b sq .|. slideY b sq
-
-activeQ :: Board -> Square -> Word64
-activeQ b sq = activeB b sq .|. activeR b sq
+    sqK = locateKing b c
 
 -- | Representations
 toPieceList :: Board -> [(Colour, Piece, Square)]
