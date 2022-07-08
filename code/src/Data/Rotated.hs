@@ -4,7 +4,7 @@ Description :
 -}
 module Data.Rotated
   ( RotWord64
-  , mkRotWord
+  , mkRotWord64
   , view
   , rotToggleSquare
   , visibleX, visibleY, visibleU, visibleV
@@ -37,14 +37,14 @@ ordering RotY = comparing (\sq -> let (x, y) = coordXY sq in (x, -y))
 ordering RotU = comparing (\sq -> let (u, v) = coordUV sq in (v, u))
 ordering RotV = comparing (\sq -> let (u, v) = coordUV sq in (-u, v))
 
-rotSquaresList :: Rot -> [Square]
-rotSquaresList r = sortBy (ordering r) squaresList
+enumRotSquares :: Rot -> [Square]
+enumRotSquares r = sortBy (ordering r) enumSquares
 
 rotIx :: Rot -> Array Square Square
-rotIx = array (minBound, maxBound) . (flip zip) squaresList . rotSquaresList
+rotIx = array (minBound, maxBound) . (flip zip) enumSquares . enumRotSquares
 
 rotInvIx :: Rot -> Array Square Square
-rotInvIx = array (minBound, maxBound) . zip squaresList . rotSquaresList
+rotInvIx = array (minBound, maxBound) . zip enumSquares . enumRotSquares
 
 rotation :: Rot -> Word64 -> Word64
 rotation r w = encodeSquares $ fmap (rotIx r !) $ decodeSquares w
@@ -57,13 +57,13 @@ newtype RotWord64
   = RotWord64 (Word64, Word64, Word64, Word64)
   deriving (Eq, Ord, Read, Show)
 
-mkRotWord :: Word64 -> RotWord64
-mkRotWord w = RotWord64
-              ( rotation RotX w
-              , rotation RotY w
-              , rotation RotU w
-              , rotation RotV w)
-
+mkRotWord64 :: Word64 -> RotWord64
+mkRotWord64 w =
+  RotWord64
+  ( rotation RotX w
+  , rotation RotY w
+  , rotation RotU w
+  , rotation RotV w)
 
 (!>) :: RotWord64 -> Rot -> Word64
 (!>) (RotWord64 (wX, wY, wU, wV)) RotX = wX
@@ -81,19 +81,19 @@ rotToggleSquare rw sq = RotWord64 (f RotX, f RotY, f RotU, f RotV)
 
 -- | Primitive Rotated Bitboards
 rotSquare :: Array Square RotWord64
-rotSquare = amap mkRotWord $ buildBy ((==) `on` coordXY)
+rotSquare = amap mkRotWord64 $ buildBy ((==) `on` coordXY)
 
 rotLineX :: Array Square RotWord64
-rotLineX = amap mkRotWord $ buildBy ((==) `on` coordX)
+rotLineX = amap mkRotWord64 $ buildBy ((==) `on` coordX)
 
 rotLineY :: Array Square RotWord64
-rotLineY = amap mkRotWord $ buildBy ((==) `on` coordY)
+rotLineY = amap mkRotWord64 $ buildBy ((==) `on` coordY)
 
 rotLineU :: Array Square RotWord64
-rotLineU = amap mkRotWord $ buildBy ((==) `on` coordU)
+rotLineU = amap mkRotWord64 $ buildBy ((==) `on` coordU)
 
 rotLineV :: Array Square RotWord64
-rotLineV = amap mkRotWord $ buildBy ((==) `on` coordV)
+rotLineV = amap mkRotWord64 $ buildBy ((==) `on` coordV)
 
 rotLine :: Rot -> Array Square Word64
 rotLine RotX = fmap (!> RotX) rotLineY
@@ -109,8 +109,8 @@ untrim :: Word8 -> Word8
 untrim occ = (occ `shiftL` 1) `setBit` 0 `setBit` 7
 
 occupancy :: RotWord64 -> Square -> Rot -> Word8
-occupancy rw sq r = trim . fromInteger . toInteger
-                    $ ((rw !> r) .&. line) `shiftR` a
+occupancy rw sq r =
+  trim . fromInteger . toInteger $ ((rw !> r) .&. line) `shiftR` a
   where
     line = rotLine r ! sq
     (a, b) = limits line

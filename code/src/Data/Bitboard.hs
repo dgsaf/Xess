@@ -1,11 +1,11 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 {- |
 Module      : Data.Bitboard
 Description :
 -}
-
-{-# LANGUAGE FlexibleContexts #-}
 module Data.Bitboard
-  ( encodeSquare, encodeSquares, encodeSquaresBy
+  ( encodeSquare, encodeSquares, encodeSquaresBy, encodeShifts
   , decodeSquares
   , buildWith, buildBy
   , square
@@ -27,16 +27,19 @@ import Data.Word
 
 -- | Square Encoding/Decoding
 encodeSquare :: Square -> Word64
-encodeSquare sq = 2 ^ fromEnum sq
+encodeSquare sq = bit $ fromEnum sq
 
 encodeSquares :: (Functor t, Foldable t) => t Square -> Word64
 encodeSquares sqs = sum $ fmap encodeSquare sqs
 
 encodeSquaresBy :: (Square -> Bool) -> Word64
-encodeSquaresBy pred = encodeSquares $ filter pred squaresList
+encodeSquaresBy pred = encodeSquares $ filter pred enumSquares
+
+encodeShifts :: [Int] -> (Square -> Word64)
+encodeShifts is = \ sq -> bitUnion $ fmap (shift (encodeSquare sq)) is
 
 decodeSquares :: Word64 -> [Square]
-decodeSquares w = filter (testBit w . fromEnum) squaresList
+decodeSquares w = filter (testBit w . fromEnum) enumSquares
 
 -- | Building Arrays of Bitboards
 buildWith :: (IArray a Word64) => (Square -> [Square]) -> a Square Word64

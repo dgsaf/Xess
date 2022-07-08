@@ -8,7 +8,7 @@ module Data.Square
   , coordXY, coordX, coordY
   , coordUV, coordU, coordV
   , translateXY, translationsXY
-  , squaresList
+  , enumSquares
   , buildSquaresArray
   ) where
 
@@ -74,8 +74,8 @@ translationsXY :: Square -> [(Int, Int)] -> [Square]
 translationsXY sq trs = mapMaybe (translateXY sq) trs
 
 -- | Utility
-squaresList :: [Square]
-squaresList = [minBound .. maxBound]
+enumSquares :: [Square]
+enumSquares = range (minBound, maxBound)
 
 buildSquaresArray :: (IArray a e) => (Square -> e) -> a Square e
-buildSquaresArray f = listArray (minBound, maxBound) $ fmap f squaresList
+buildSquaresArray f = listArray (minBound, maxBound) $ fmap f enumSquares
