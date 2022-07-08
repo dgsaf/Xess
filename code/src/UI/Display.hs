@@ -5,6 +5,7 @@ Description :
 module UI.Display
   ( display
   , displayWord
+  , displayWordsH, displayWordsV, displayWordsHV
   ) where
 
 import Data.Bitboard
@@ -26,10 +27,22 @@ display f g = fmap (concat . intersperse " " . fmap ((!) padArr)) ranks
     width = maximum $ fmap length strArr
     padArr = fmap (\ s -> take (width - length s) (repeat ' ') ++ s) strArr
 
+joinH :: [[String]] -> [String]
+joinH grids =
+  transpose . concat . fmap transpose . intersperse (take 8 $ repeat "  ")
+  $ grids
+
+joinV :: [[String]] -> [String]
+joinV grids = concat . intersperse [""] $ grids
+
 displayWord :: Word64 -> [String]
 displayWord w = display (hasSquare w) (\ b -> if b then "x" else ".")
 
-displayWords :: [Word64] -> [String]
-displayWords ws = transpose . concat . fmap transpose
-                  . intersperse (take 8 $ repeat "  ")
-                  $ fmap displayWord ws
+displayWordsH :: [Word64] -> [String]
+displayWordsH ws = joinH $ fmap displayWord ws
+
+displayWordsV :: [Word64] -> [String]
+displayWordsV ws = joinV $ fmap displayWord ws
+
+displayWordsHV :: [[Word64]] -> [String]
+displayWordsHV wss = joinV . fmap (joinH . fmap displayWord) $ wss
