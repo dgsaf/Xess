@@ -2,7 +2,7 @@
 Module      : UI.AN
 Description :
 -}
-module UI.An
+module UI.AN
   ( pieceToAN
   , pieceToFEN
   , squareToAN

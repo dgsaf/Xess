@@ -88,7 +88,7 @@ defaultBoard =
   , _rotOccupied = mkRotWord64 occ
   }
   where
-    wp = lineX ! toEnum 8
+    wp = lineY ! toEnum 8
     wn = (square ! toEnum 1) .|. (square ! toEnum 6)
     wb = (square ! toEnum 2) .|. (square ! toEnum 5)
     wr = (square ! toEnum 0) .|. (square ! toEnum 7)
