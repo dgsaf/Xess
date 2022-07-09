@@ -11,7 +11,7 @@ module Data.Board
   , slideX, slideY, slideU, slideV
   , hostile, engageable, unoccupied
   , pieceAt, (!?), locateKing
-  , areFriendly, areHostile
+  , areFriendly, areHostile, isSquareSlideR, isSquareSlideB
 
   , quietP
   , activeP, activeN, activeK
@@ -27,9 +27,10 @@ module Data.Board
   , sightedX, sightedY, sightedU, sightedV
   , xrayX, xrayY, xrayU, xrayV
   , xraying, xrayed
+  -- , between, blocking
 
-  , checks, inCheck
-  , checkMask, kingMask, pinMasks
+  , checks, inCheck, pins
+  , checkmask, kingmask, pinmask
 
   , toPieceList, fromPieceList
   , toArray, fromArray
@@ -240,6 +241,12 @@ areHostile b sq sq' = fromMaybe False $
     (c', p') <- b !? sq'
     return (c /= c')
 
+isSquareSlideR :: Board -> Square -> Bool
+isSquareSlideR b sq = maybe False (isSlideR . snd) (b !? sq)
+
+isSquareSlideB :: Board -> Square -> Bool
+isSquareSlideB b sq = maybe False (isSlideB . snd) (b !? sq)
+
 -- | Static
 quietP :: Colour -> UArray Square Word64
 quietP c = buildWith (\ sq -> translationsXY (ts c sq) sq)
@@ -368,14 +375,26 @@ xraying b sq = maybe [] (f . snd) (b !? sq)
 xrayed :: Board -> Square -> [(Square, Square)]
 xrayed b sq = xrayedB ++ xrayedR
   where
-    xrayedB =
-      filter
-        (\ (sq', sq'') -> maybe False (isSlideB . snd) (b !? sq''))
-        $ xrayU b sq ++ xrayV b sq
-    xrayedR =
-      filter
-        (\ (sq', sq'') -> maybe False (isSlideR . snd) (b !? sq''))
-        $ xrayX b sq ++ xrayY b sq
+    xrayedB = filter (isSquareSlideB b . snd) $ xrayU b sq ++ xrayV b sq
+    xrayedR = filter (isSquareSlideR b . snd) $ xrayX b sq ++ xrayY b sq
+
+-- between :: Board -> Square -> [(Square, Square)]
+-- between b sq =
+--   fmap (\ sqs -> (head sqs, head $ tail sqs))
+--   $ filter ((==) 2 . length)
+--   $ fmap (\ f -> f b sq) [sightedX, sightedY, sightedU, sightedV]
+
+-- blocking :: Board -> Square -> [(Square, Square)]
+-- blocking b sq
+--   | hasSquare (occupied b) sq = filter pred $ between b sq
+--   | otherwise                 = []
+--   where
+--     predB sq' sq'' =
+--       (alignedUV sq' sq'') && (isSquareSlideB b sq' || isSquareSlideB b sq'')
+--     predR sq' sq'' =
+--       (alignedXY sq' sq'') && (isSquareSlideR b sq' || isSquareSlideR b sq'')
+--     pred (sq', sq'') =
+--       areHostile b sq' sq'' && (predB sq' sq'' || predR sq' sq'')
 
 -- | Check, Pin
 checks :: Board -> Colour -> Word64
@@ -384,8 +403,15 @@ checks b c = attacksTo b (locateKing b c) .&. hostile b c
 inCheck :: Board -> Colour -> Bool
 inCheck b c = checks b c /= zeroBits
 
-checkMask :: Board -> Colour -> Word64
-checkMask b c =
+pins :: Board -> Colour -> [(Square, Square)]
+pins b c =
+  filter (\ (sq, sq') -> areFriendly b sqK sq && areHostile b sqK sq')
+  $ xrayed b sqK
+  where
+    sqK = locateKing b c
+
+checkmask :: Board -> Colour -> Word64
+checkmask b c =
   bitIntersect
   $ fmap (\ sq -> mask sq $ snd . fromJust $ b !? sq)
   $ decodeSquares $ checks b c
@@ -394,14 +420,13 @@ checkMask b c =
     mask sq N = square ! sq
     mask sq _ = lineBetween sqK sq `clearBit` fromEnum sqK
 
-kingMask :: Board -> Colour -> Word64
-kingMask b c = complement $ attacked (clearSquare (locateKing b c) b) c
+kingmask :: Board -> Colour -> Word64
+kingmask b c = complement $ attacked (clearSquare (locateKing b c) b) c
 
-pinMasks :: Board -> Colour -> [(Square, Word64)]
-pinMasks b c =
-  fmap (\ (sq, sq') -> (sq, lineBetween sqK sq' `clearBit` fromEnum sqK))
-  $ filter (\ (sq, sq') -> areFriendly b sqK sq && areHostile b sqK sq')
-  $ xrayed b sqK
+pinmask :: Board -> Colour -> Square -> Word64
+pinmask b c sq =
+  maybe zeroBits (\ (sq', sq'') -> lineBetween sqK sq'' `clearBit` fromEnum sqK)
+  $ find ((==) sq . fst) $ pins b c
   where
     sqK = locateKing b c
 

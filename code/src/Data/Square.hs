@@ -15,7 +15,8 @@ module Data.Square
 
   , enumSquares
   , buildSquaresArray
-  , collinear
+  , alignedX, alignedY, alignedXY
+  , alignedU, alignedV, alignedUV
   ) where
 
 import Data.Array.IArray
@@ -98,7 +99,20 @@ enumSquares = range (minBound, maxBound)
 buildSquaresArray :: (IArray a e) => (Square -> e) -> a Square e
 buildSquaresArray f = listArray (minBound, maxBound) $ fmap f enumSquares
 
-collinear :: [Square] -> Bool
-collinear []  = False
-collinear sqs = any (\ f -> all (\ sq' -> f (head sqs) == f sq') sqs)
-                $ [coordX, coordY, coordU, coordV]
+alignedX :: Square -> Square -> Bool
+alignedX = (==) `on` coordX
+
+alignedY :: Square -> Square -> Bool
+alignedY = (==) `on` coordY
+
+alignedXY :: Square -> Square -> Bool
+alignedXY sq sq' = alignedX sq sq' || alignedY sq sq'
+
+alignedU :: Square -> Square -> Bool
+alignedU = (==) `on` coordU
+
+alignedV :: Square -> Square -> Bool
+alignedV = (==) `on` coordV
+
+alignedUV :: Square -> Square -> Bool
+alignedUV sq sq' = alignedU sq sq' || alignedV sq sq'
