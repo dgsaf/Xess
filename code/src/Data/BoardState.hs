@@ -14,9 +14,11 @@ import Data.Piece
 import Data.Rotated
 import Data.Square
 
+import Control.Applicative
 import Control.Monad
 import Data.Bits
 import Data.Maybe
+import Data.Word
 
 -- | Board State
 data BoardState
@@ -76,3 +78,45 @@ maybeCastles b mv = mfilter pred $ maybeCastleSquaresK (src mv, dst mv)
     pred (c, s) = hasSquare (piece b (c, K)) . fst $ castleSquaresK (c, s)
 
 -- | Moves
+mask :: Board -> Square -> (Colour, Piece) -> Word64
+mask b _  (c, K) = kingmask b c
+mask b sq (c, p) = checkmask b c .&. pinmask b c sq
+
+moves :: Board -> Square -> (Colour, Piece) -> Maybe Square -> Word64
+moves b sq (c, p) msqEP =
+  case (p, msqEP) of
+    (P, Just sqEP) -> mask b sq (c, p) .&.
+                      (scope b sq (c, P) .|. scopeEP b sq (c, P) sqEP)
+    (p, _)         -> mask b sq (c, p) .&. scope b sq (c, p)
+
+castles :: Board -> Colour -> Castling -> Word64
+castles b c ct =
+  case (canCastle ct (c, Short), canCastle ct (c, Long)) of
+    (True, True)   -> scopeCastle b (c, Short) .|. scopeCastle b (c, Long)
+    (True, False)  -> scopeCastle b (c, Short)
+    (False, True)  -> scopeCastle b (c, Long)
+    (False, False) -> zeroBits
+
+legalMoves :: BoardState -> [(Square, Square)]
+legalMoves bs = moveList ++ castleList
+  where
+    b = _board bs
+    c = colourToMove bs
+
+    sqps =
+      mapMaybe
+        (\ sq -> liftA2 (,) (Just sq) (fmap snd $ b !? sq))
+        $ decodeSquares $ colour b c
+
+    moveList =
+      concat $ fmap
+        (\ (sq, p) ->
+           zip
+             (repeat sq)
+             (decodeSquares $ moves b sq (c, p) (_squareEP bs)))
+        sqps
+
+    castleList =
+      zip
+        (repeat $ initialSquareK c)
+        (decodeSquares (castles b c (_castling bs)))

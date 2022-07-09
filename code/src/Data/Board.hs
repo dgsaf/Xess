@@ -425,8 +425,10 @@ kingmask b c = complement $ attacked (clearSquare (locateKing b c) b) c
 
 pinmask :: Board -> Colour -> Square -> Word64
 pinmask b c sq =
-  maybe zeroBits (\ (sq', sq'') -> lineBetween sqK sq'' `clearBit` fromEnum sqK)
-  $ find ((==) sq . fst) $ pins b c
+  maybe
+    (complement zeroBits)
+    (\ (sq', sq'') -> lineBetween sqK sq'' `clearBit` fromEnum sqK)
+    $ find ((==) sq . fst) $ pins b c
   where
     sqK = locateKing b c
 

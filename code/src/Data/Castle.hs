@@ -7,6 +7,7 @@ module Data.Castle
     ( Short
     , Long
     )
+  , initialSquareK
   , castleSquaresK, castleSquaresR
   , maybeCastleSquaresK
 
