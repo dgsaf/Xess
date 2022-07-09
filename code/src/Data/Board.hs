@@ -2,7 +2,6 @@
 Module      : Data.Board
 Description :
 -}
-
 module Data.Board
   ( Board
   , emptyBoard, defaultBoard
@@ -17,6 +16,7 @@ module Data.Board
   , quietP
   , activeP, activeN, activeK
   , activeB, activeR, activeQ
+  , isCastleOpen
 
   , active, scope
   , attacksFrom, attacksTo, attacking, attacked
@@ -33,6 +33,7 @@ module Data.Board
   ) where
 
 import Data.Bitboard
+import Data.Castle
 import Data.Colour
 import Data.Piece
 import Data.Rotated
@@ -272,6 +273,16 @@ activeR b sq = slideX b sq .|. slideY b sq
 
 activeQ :: Board -> Square -> Word64
 activeQ b sq = activeB b sq .|. activeR b sq
+
+-- | Castling
+isCastleOpen :: Board -> (Colour, Side) -> Bool
+isCastleOpen b (c, s) =
+  hasSquare (piece b (c, K)) sqK && hasSquare (piece b (c, R)) sqR
+  && hasSquare (slideY b sqR) sqK
+  && ((attacked b c .&. lineBetween sqK sqK') == zeroBits)
+  where
+    (sqK, sqK') = castleSquaresK (c, s)
+    (sqR, sqR') = castleSquaresR (c, s)
 
 -- | Attack
 active :: Board -> Square -> (Colour, Piece) -> Word64

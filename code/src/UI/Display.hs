@@ -11,6 +11,7 @@ module UI.Display
 
 import Data.Bitboard
 import Data.Board
+import Data.Castle
 import Data.Colour
 import Data.Piece
 import Data.Rotated
@@ -18,6 +19,7 @@ import Data.Square
 import UI.AN
 
 import Data.Array.IArray
+import Data.Bits
 import Data.List
 import Data.Maybe
 import Data.Word
