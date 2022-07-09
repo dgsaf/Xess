@@ -8,6 +8,7 @@ module Data.Castle
     , Long
     )
   , castleSquaresK, castleSquaresR
+  , maybeCastleSquaresK
 
   , Castling
   , defaultCastling
@@ -55,6 +56,14 @@ castleSquaresK (c, s) = (initialSquareK c, finalSquareK (c, s))
 
 castleSquaresR :: (Colour, Side) -> (Square, Square)
 castleSquaresR (c, s) = (initialSquareR (c, s), finalSquareR (c, s))
+
+maybeCastleSquaresK :: (Square, Square) -> Maybe (Colour, Side)
+maybeCastleSquaresK (sq, sq')
+  | (sq, sq') == castleSquaresK (White, Short) = Just (White, Short)
+  | (sq, sq') == castleSquaresK (White, Long)  = Just (White, Long)
+  | (sq, sq') == castleSquaresK (Black, Short) = Just (Black, Short)
+  | (sq, sq') == castleSquaresK (Black, Long)  = Just (Black, Long)
+  | otherwise                                  = Nothing
 
 -- | Castling Rights
 data Castling

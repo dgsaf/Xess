@@ -5,9 +5,14 @@ Description :
 module Data.Square
   ( Square
   , mkSquare, mkSquareXY
+
   , coordXY, coordX, coordY
   , coordUV, coordU, coordV
+
   , translateXY, translationsXY
+
+  , distXY, distX, distY
+
   , enumSquares
   , buildSquaresArray
   , collinear
@@ -75,6 +80,16 @@ translateXY (i, j) sq = mkSquareXY $ (x + i, y + j)
 
 translationsXY :: [(Int, Int)] -> Square -> [Square]
 translationsXY ts sq = mapMaybe (\t -> translateXY t sq) ts
+
+-- | Coordinate Distance
+distXY :: Square -> Square -> (Int, Int)
+distXY sq sq' = (distX sq sq', distY sq sq')
+
+distX :: Square -> Square -> Int
+distX = (-) `on` (coordX)
+
+distY :: Square -> Square -> Int
+distY = (-) `on` (coordY)
 
 -- | Utility
 enumSquares :: [Square]
