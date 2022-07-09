@@ -16,10 +16,13 @@ module Data.Board
   , quietP
   , activeP, activeN, activeK
   , activeB, activeR, activeQ
+
+  , active
+  , attacksFrom, attacksTo, attacking, attacked
+
   , isCastleOpen
 
-  , active, scope
-  , attacksFrom, attacksTo, attacking, attacked
+  , scope, scopeEP, scopeCastle
 
   , sightedX, sightedY, sightedU, sightedV
   , xrayX, xrayY, xrayU, xrayV
@@ -274,16 +277,6 @@ activeR b sq = slideX b sq .|. slideY b sq
 activeQ :: Board -> Square -> Word64
 activeQ b sq = activeB b sq .|. activeR b sq
 
--- | Castling
-isCastleOpen :: Board -> (Colour, Side) -> Bool
-isCastleOpen b (c, s) =
-  hasSquare (piece b (c, K)) sqK && hasSquare (piece b (c, R)) sqR
-  && hasSquare (slideY b sqR) sqK
-  && ((attacked b c .&. lineBetween sqK sqK') == zeroBits)
-  where
-    (sqK, sqK') = castleSquaresK (c, s)
-    (sqR, sqR') = castleSquaresR (c, s)
-
 -- | Attack
 active :: Board -> Square -> (Colour, Piece) -> Word64
 active b sq (c, P) = activeP c ! sq
@@ -292,11 +285,6 @@ active b sq (c, B) = activeB b sq
 active b sq (c, R) = activeR b sq
 active b sq (c, Q) = activeQ b sq
 active b sq (c, K) = activeK ! sq
-
-scope :: Board -> Square -> (Colour, Piece) -> Word64
-scope b sq (c, P) = (activeP c ! sq .&. hostile b c)
-                    .|. (quietP c ! sq .&. unoccupied b .&. activeR b sq)
-scope b sq (c, p) = active b sq (c, p) .&. engageable b c
 
 attacksFrom :: Board -> Square -> Word64
 attacksFrom b sq = maybe zeroBits (active b sq) (b !? sq)
@@ -309,6 +297,34 @@ attacking b c = bitUnion $ fmap (attacksFrom b) $ decodeSquares $ colour b c
 
 attacked :: Board -> Colour -> Word64
 attacked b c = attacking b $ opposite c
+
+-- | Castling
+isCastleOpen :: Board -> (Colour, Side) -> Bool
+isCastleOpen b (c, s) =
+  hasSquare (piece b (c, K)) sqK && hasSquare (piece b (c, R)) sqR
+  && hasSquare (slideY b sqR) sqK
+  && ((attacked b c .&. lineBetween sqK sqK') == zeroBits)
+  where
+    (sqK, sqK') = castleSquaresK (c, s)
+    (sqR, sqR') = castleSquaresR (c, s)
+
+-- | Scope
+scope :: Board -> Square -> (Colour, Piece) -> Word64
+scope b sq (c, P) = (activeP c ! sq .&. hostile b c)
+                    .|. (quietP c ! sq .&. unoccupied b .&. slideX b sq)
+scope b sq (c, p) = active b sq (c, p) .&. engageable b c
+
+scopeEP :: Board -> Square -> (Colour, Piece) -> Square -> Word64
+scopeEP b sq (c, P) sqEP = (activeP c ! sq .&. hostileEP c)
+  where
+    hostileEP White = (hostile b c `shiftL` 8) .&. (square ! sqEP)
+    hostileEP Black = (hostile b c `shiftR` 8) .&. (square ! sqEP)
+scopeEP b sq (c, _) sqEP = zeroBits
+
+scopeCastle :: Board -> (Colour, Side) -> Word64
+scopeCastle b (c, s)
+  | isCastleOpen b (c, s) = square ! (snd $ castleSquaresK (c, s))
+  | otherwise             = zeroBits
 
 -- | Xray
 sightedX :: Board -> Square -> [Square]
