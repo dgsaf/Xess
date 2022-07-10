@@ -12,11 +12,13 @@ module Data.Square
   , translateXY, translationsXY
 
   , distXY, distX, distY
+  , norm
+
+  , alignedX, alignedY, alignedXY
+  , alignedU, alignedV, alignedUV
 
   , enumSquares
   , buildSquaresArray
-  , alignedX, alignedY, alignedXY
-  , alignedU, alignedV, alignedUV
   ) where
 
 import Data.Array.IArray
@@ -92,13 +94,10 @@ distX = (-) `on` (coordX)
 distY :: Square -> Square -> Int
 distY = (-) `on` (coordY)
 
--- | Utility
-enumSquares :: [Square]
-enumSquares = range (minBound, maxBound)
+norm :: Square -> Square -> Int
+norm sq sq' = let (x, y) = distXY sq sq' in (abs x) + (abs y)
 
-buildSquaresArray :: (IArray a e) => (Square -> e) -> a Square e
-buildSquaresArray f = listArray (minBound, maxBound) $ fmap f enumSquares
-
+-- | Alignment
 alignedX :: Square -> Square -> Bool
 alignedX = (==) `on` coordX
 
@@ -116,3 +115,10 @@ alignedV = (==) `on` coordV
 
 alignedUV :: Square -> Square -> Bool
 alignedUV sq sq' = alignedU sq sq' || alignedV sq sq'
+
+-- | Utility
+enumSquares :: [Square]
+enumSquares = range (minBound, maxBound)
+
+buildSquaresArray :: (IArray a e) => (Square -> e) -> a Square e
+buildSquaresArray f = listArray (minBound, maxBound) $ fmap f enumSquares
