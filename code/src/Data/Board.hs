@@ -456,3 +456,16 @@ fromArray :: Array Square (Maybe (Colour, Piece)) -> Board
 fromArray arr =
   fromPieceList
   $ mapMaybe (\ sq -> fmap (\ (c, p) -> (c, p, sq)) (arr ! sq)) enumSquares
+
+--------------------------------------------------------------------------------
+-- | Under Construction
+
+-- shiftX
+-- shiftY
+
+-- stepsP
+-- attacksP
+-- slideAttacksX
+-- slideAttacksY
+-- slideAttacksU
+-- slideAttacksV
