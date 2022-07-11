@@ -4,13 +4,13 @@ Description :
 -}
 module Data.Move
   ( Move
-  , consCastle
-  , consQuiet
-  , consPush
-  , consPromote
-  , consCapture
-  , consCaptureEP
-  , consCapturePromote
+  , mkCastle
+  , mkQuiet
+  , mkPush
+  , mkPromote
+  , mkCapture
+  , mkCaptureEP
+  , mkCapturePromote
   ) where
 
 import Data.Castle
@@ -55,8 +55,8 @@ data Move
   }
 
 -- | Constructors
-consCastle :: (Colour, Side) -> Move
-consCastle (c, s) =
+mkCastle :: (Colour, Side) -> Move
+mkCastle (c, s) =
   Move
   { _origin = sqK
   , _target = sqK'
@@ -72,8 +72,8 @@ consCastle (c, s) =
         (Black, Short) -> CastleBS
         (Black, Long)  -> CastleBL
 
-consQuiet :: Square -> Square -> Move
-consQuiet sq sq' =
+mkQuiet :: Square -> Square -> Move
+mkQuiet sq sq' =
   Move
   { _origin = sq
   , _target = sq'
@@ -81,8 +81,8 @@ consQuiet sq sq' =
   , _captured = Nothing
   }
 
-consPush :: Square -> Square -> Move
-consPush sq sq' =
+mkPush :: Square -> Square -> Move
+mkPush sq sq' =
   Move
   { _origin = sq
   , _target = sq'
@@ -90,8 +90,8 @@ consPush sq sq' =
   , _captured = Nothing
   }
 
-consPromote :: Square -> Square -> Piece -> Move
-consPromote sq sq' pp =
+mkPromote :: Square -> Square -> Piece -> Move
+mkPromote sq sq' pp =
   Move
   { _origin = sq
   , _target = sq'
@@ -107,8 +107,8 @@ consPromote sq sq' pp =
         Q -> PromoteQ
         _ -> undefined
 
-consCapture :: Square -> Square -> (Colour, Piece) -> Move
-consCapture sq sq' (c, cp) =
+mkCapture :: Square -> Square -> (Colour, Piece) -> Move
+mkCapture sq sq' (c, cp) =
   Move
   { _origin = sq
   , _target = sq'
@@ -116,8 +116,8 @@ consCapture sq sq' (c, cp) =
   , _captured = Just (c, cp)
   }
 
-consCaptureEP :: Square -> Square -> Colour -> Move
-consCaptureEP sq sq' c =
+mkCaptureEP :: Square -> Square -> Colour -> Move
+mkCaptureEP sq sq' c =
   Move
   { _origin = sq
   , _target = sq'
@@ -125,8 +125,8 @@ consCaptureEP sq sq' c =
   , _captured = Just (c, P)
   }
 
-consCapturePromote :: Square -> Square -> (Colour, Piece) -> Piece -> Move
-consCapturePromote sq sq' (c, cp) pp =
+mkCapturePromote :: Square -> Square -> (Colour, Piece) -> Piece -> Move
+mkCapturePromote sq sq' (c, cp) pp =
   Move
   { _origin = sq
   , _target = sq'

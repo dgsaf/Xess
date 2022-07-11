@@ -7,6 +7,7 @@ module Data.Rotated
   , mkRotWord64
   , view
   , rotToggleSquare
+  , zeroRotWord64, mkRotWord64Toggle
   , visibleX, visibleY, visibleU, visibleV
   , lineBetween
   ) where
@@ -57,6 +58,7 @@ newtype RotWord64
   = RotWord64 (Word64, Word64, Word64, Word64)
   deriving (Eq, Ord, Read, Show)
 
+-- | Constructors
 mkRotWord64 :: Word64 -> RotWord64
 mkRotWord64 w =
   RotWord64
@@ -65,6 +67,7 @@ mkRotWord64 w =
   , rotation RotU w
   , rotation RotV w)
 
+-- | View Rotated Bitboards
 (!>) :: RotWord64 -> Rot -> Word64
 (!>) (RotWord64 (wX, wY, wU, wV)) RotX = wX
 (!>) (RotWord64 (wX, wY, wU, wV)) RotY = wY
@@ -74,10 +77,18 @@ mkRotWord64 w =
 view :: RotWord64 -> Word64
 view rw = rw !> RotX
 
+-- | Incremental Update
 rotToggleSquare :: RotWord64 -> Square -> RotWord64
 rotToggleSquare rw sq = RotWord64 (f RotX, f RotY, f RotU, f RotV)
   where
     f r = toggleSquare (rw !> r) (rotIx r ! sq)
+
+-- | Incremental Constructor
+zeroRotWord64 :: RotWord64
+zeroRotWord64 = RotWord64 (zeroBits, zeroBits, zeroBits, zeroBits)
+
+mkRotWord64Toggle :: Word64 -> RotWord64
+mkRotWord64Toggle w = foldl' rotToggleSquare zeroRotWord64 $ decodeSquares w
 
 -- | Primitive Rotated Bitboards
 rotSquare :: Array Square RotWord64
