@@ -9,7 +9,6 @@ module Data.Rotated
   , rotToggleSquare
   , zeroRotWord64, mkRotWord64Toggle
   , visibleX, visibleY, visibleU, visibleV
-  , lineBetween
   ) where
 
 import Data.Bitboard
@@ -119,28 +118,34 @@ trim occ = occ `clearBit` 7 `shiftR` 1
 untrim :: Word8 -> Word8
 untrim occ = (occ `shiftL` 1) `setBit` 0 `setBit` 7
 
+firstL :: Word8 -> Int -> Int
+firstL w k = maybe 7 ((+) k) $ find (\i -> testBit (shiftR w i) k) [1 .. (7-k)]
+
+firstR :: Word8 -> Int -> Int
+firstR w k = maybe 0 ((-) k) $ find (\i -> testBit (shiftL w i) k) [1 .. k]
+
 occupancy :: RotWord64 -> Square -> Rot -> Word8
-occupancy rw sq r =
-  trim . fromInteger . toInteger $ ((rw !> r) .&. line) `shiftR` a
+occupancy rw sq r = fromInteger . toInteger $ ((rw !> r) .&. line) `shiftR` a
   where
     line = rotLine r ! sq
     (a, b) = limits line
 
 visible :: Rot -> (Square, Word8) -> Word64
-visible r (sq, occ) = invRotation r (encodeSquares $ fmap toEnum [i .. j])
+visible r (sq, occ) = lineBetween sqR sqL
   where
     line = rotLine r ! sq
     (a, b) = limits line
-    m = fromEnum $ rotIx r ! sq
-    p k = testBit (untrim occ) (k - a)
-    i = maybe a id $ find p [m - 1, m - 2 .. a]
-    j = maybe b id $ find p [m + 1, m + 2 .. b]
+    k = (fromEnum $ rotIx r ! sq) - a
+    i = a + firstR occ k
+    j = min (a + firstL occ k) b
+    (sqR, sqL) = (rotInvIx r ! toEnum i, rotInvIx r ! toEnum j)
 
 -- | Primitive Occupancy Bitboards
 buildVisibleLine :: Rot -> UArray (Square, Word8) Word64
-buildVisibleLine r = listArray bs $ fmap (visible r) $ range bs
+buildVisibleLine r = listArray bs $ fmap f $ range bs
   where
     bs = ((minBound, fromInteger 0), (maxBound, fromInteger 63))
+    f (sq, occTrim) = visible r (sq, untrim occTrim)
 
 visibleLineX :: UArray (Square, Word8) Word64
 visibleLineX = buildVisibleLine RotY
@@ -156,21 +161,13 @@ visibleLineV = buildVisibleLine RotU
 
 -- | Visibility Bitboards
 visibleX :: RotWord64 -> Square -> Word64
-visibleX rw sq = visibleLineX ! (sq, occupancy rw sq RotY)
+visibleX rw sq = visibleLineX ! (sq, trim $ occupancy rw sq RotY)
 
 visibleY :: RotWord64 -> Square -> Word64
-visibleY rw sq = visibleLineY ! (sq, occupancy rw sq RotX)
+visibleY rw sq = visibleLineY ! (sq, trim $ occupancy rw sq RotX)
 
 visibleU :: RotWord64 -> Square -> Word64
-visibleU rw sq = visibleLineU ! (sq, occupancy rw sq RotV)
+visibleU rw sq = visibleLineU ! (sq, trim $ occupancy rw sq RotV)
 
 visibleV :: RotWord64 -> Square -> Word64
-visibleV rw sq = visibleLineV ! (sq, occupancy rw sq RotU)
-
--- | Utility
-lineBetween :: Square -> Square -> Word64
-lineBetween sq sq'
-  | sq == sq' = square ! sq
-  | otherwise = bitUnion $ fmap f $ [visibleX, visibleY, visibleU, visibleV]
-  where
-    f vis = vis (rotSquare ! sq) sq' .&. vis (rotSquare ! sq') sq
+visibleV rw sq = visibleLineV ! (sq, trim $ occupancy rw sq RotU)

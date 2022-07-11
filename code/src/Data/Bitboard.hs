@@ -10,9 +10,11 @@ module Data.Bitboard
   , buildWith, buildBy
   , square
   , lineX, lineY, lineU, lineV
+  , shiftX, shiftY, shiftXY, shiftsXY
   , bitUnion, bitIntersect
   , limits, hasSquare
   , toggleSquare
+  , lineBetween
   ) where
 
 import Data.Square
@@ -46,6 +48,8 @@ buildBy :: (IArray a Word64) => (Square -> Square -> Bool) -> a Square Word64
 buildBy pred = buildSquaresArray (\ sq -> encodeSquaresBy (pred sq))
 
 -- | Primitive Bitboards
+-- Note that `lineZ` means a line with constant Z, not a line parallel to the Z
+-- axis.
 square :: UArray Square Word64
 square = buildBy ((==) `on` coordXY)
 
@@ -61,13 +65,29 @@ lineU = buildBy ((==) `on` coordU)
 lineV :: UArray Square Word64
 lineV = buildBy ((==) `on` coordV)
 
--- | Utility
+-- | Shift
+shiftX :: Word64 -> Int -> Word64
+shiftX w i = bitUnion $ fmap f [0 .. 7]
+  where
+    f y = let l = lineY ! toEnum (8 * y) in ((w .&. l) `shift` i) .&. l
+
+shiftY :: Word64 -> Int -> Word64
+shiftY w j = w `shift` (8*j)
+
+shiftXY :: Word64 -> (Int, Int) -> Word64
+shiftXY w (i, j) = (w `shiftX` i) `shiftY` j
+
+shiftsXY :: (Functor t, Foldable t) => Word64 -> t (Int, Int) -> Word64
+shiftsXY w shs = bitUnion $ fmap (shiftXY w) shs
+
+-- | Combine Bitboards
 bitUnion :: (Foldable t) => t Word64 -> Word64
 bitUnion ws = foldl' (.|.) zeroBits ws
 
 bitIntersect :: (Foldable t) => t Word64 -> Word64
 bitIntersect ws = foldl' (.&.) (complement zeroBits) ws
 
+-- | Utility
 limits :: Word64 -> (Int, Int)
 limits w = (countTrailingZeros w, 63 - countLeadingZeros w)
 
@@ -76,3 +96,6 @@ hasSquare w sq = testBit w $ fromEnum sq
 
 toggleSquare :: Word64 -> Square -> Word64
 toggleSquare w sq = w `complementBit` fromEnum sq
+
+lineBetween :: Square -> Square -> Word64
+lineBetween sq sq' = encodeSquares $ squaresBetween sq sq'

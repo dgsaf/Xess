@@ -16,6 +16,7 @@ module Data.Square
 
   , alignedX, alignedY, alignedXY
   , alignedU, alignedV, alignedUV
+  , squaresBetween
 
   , enumSquares
   , buildSquaresArray
@@ -115,6 +116,19 @@ alignedV = (==) `on` coordV
 
 alignedUV :: Square -> Square -> Bool
 alignedUV sq sq' = alignedU sq sq' || alignedV sq sq'
+
+squaresBetween :: Square -> Square -> [Square]
+squaresBetween sq sq'
+  | alignedX sq sq' = fmap toEnum [i, i + 8 .. j]
+  | alignedY sq sq' = fmap toEnum [i, i + 1 .. j]
+  | alignedU sq sq' = fmap toEnum [i, i + 9 .. j]
+  | alignedV sq sq' = fmap toEnum [i, i + 7 .. j]
+  | otherwise       = []
+  where
+    n  = fromEnum sq
+    n' = fromEnum sq'
+    i = min n n'
+    j = max n n'
 
 -- | Utility
 enumSquares :: [Square]
