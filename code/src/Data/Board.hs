@@ -35,6 +35,19 @@ module Data.Board
 
   , toPieceList, fromPieceList
   , toArray, fromArray
+
+  --
+  , rankFromRear
+  , forward, forwardU, forwardV
+  , backward, backwardU, backwardV
+  , stepP, pushP, activePU, activePV
+  , fillsForward, fillsBackward
+  , spansForward, spansForwardU, spansForwardV
+  , spansBackward, spansBackwardU, spansBackwardV
+  , spans, spansU, spansV
+  , interspan
+  , isolated, isolatedU, isolatedV
+  , doubledForward, doubledBackward
   ) where
 
 import Data.Bitboard
@@ -469,3 +482,112 @@ fromArray arr =
 -- slideAttacksY
 -- slideAttacksU
 -- slideAttacksV
+
+-- |
+rankFromRear :: Colour -> Int -> Word64
+rankFromRear White i = lineY ! (toEnum $ 8 * i)
+rankFromRear Black i = lineY ! (toEnum $ 8 * (7 - i))
+
+-- |
+forward :: Colour -> Word64 -> Word64
+forward White = (flip shiftL) 8
+forward Black = (flip shiftR) 8
+
+forwardU :: Colour -> Word64 -> Word64
+forwardU White = (flip shiftL) 9 . (.&.) (complement (lineX ! toEnum 7))
+forwardU Black = (flip shiftR) 9 . (.&.) (complement (lineX ! toEnum 0))
+
+forwardV :: Colour -> Word64 -> Word64
+forwardV White = (flip shiftL) 7 . (.&.) (complement (lineX ! toEnum 0))
+forwardV Black = (flip shiftR) 7 . (.&.) (complement (lineX ! toEnum 7))
+
+backward :: Colour -> Word64 -> Word64
+backward c = forward (opposite c)
+
+backwardU :: Colour -> Word64 -> Word64
+backwardU c = forwardU (opposite c)
+
+backwardV :: Colour -> Word64 -> Word64
+backwardV c = forwardV (opposite c)
+
+-- |
+stepP :: Board -> Colour -> Word64
+stepP b c = unoccupied b .&. forward c (piece b (c, P))
+
+pushP :: Board -> Colour -> Word64
+pushP b c = rankFromRear c 3 .&. (f . f $ piece b (c, P))
+  where
+    f w = forward c w .&. unoccupied b
+
+activePU :: Board -> Colour -> Word64
+activePU b c = forwardU c (piece b (c, P))
+
+activePV :: Board -> Colour -> Word64
+activePV b c = forwardV c (piece b (c, P))
+
+-- |
+fillsForward :: Colour -> Word64 -> Word64
+fillsForward c w = foldl' (\ w' _ -> w' .|. forward c w') w [0 .. 7]
+
+fillsBackward :: Colour -> Word64 -> Word64
+fillsBackward c w = foldl' (\ w' _ -> w' .|. backward c w') w [0 .. 7]
+
+-- |
+spansForward :: Colour -> Word64 -> Word64
+spansForward c w = fillsForward c (forward c w)
+
+spansForwardU :: Colour -> Word64 -> Word64
+spansForwardU c w = fillsForward c (forwardU c w)
+
+spansForwardV :: Colour -> Word64 -> Word64
+spansForwardV c w = fillsForward c (forwardV c w)
+
+spansBackward :: Colour -> Word64 -> Word64
+spansBackward c w = fillsBackward c (backward c w)
+
+spansBackwardU :: Colour -> Word64 -> Word64
+spansBackwardU c w = spansBackward c (forwardU c w)
+
+spansBackwardV :: Colour -> Word64 -> Word64
+spansBackwardV c w = spansBackward c (forwardV c w)
+
+-- |
+spans :: Colour -> Word64 -> Word64
+spans c w = fillsForward c w .|. fillsBackward c w
+
+spansU :: Colour -> Word64 -> Word64
+spansU c w = spansForwardU c w .|. spansBackwardU c w
+
+spansV :: Colour -> Word64 -> Word64
+spansV c w = spansForwardV c w .|. spansBackwardV c w
+
+-- |
+interspan :: Board -> Word64
+interspan b = sf White .&. sf Black
+  where
+    sf c = spansForward c (piece b (c, P))
+
+isolated :: Board -> Colour -> Word64
+isolated b c = w .&. complement (spansU c w .|. spansV c w)
+  where
+    w = piece b (c, P)
+
+isolatedU :: Board -> Colour -> Word64
+isolatedU b c = w .&. complement (spansU c w)
+  where
+    w = piece b (c, P)
+
+isolatedV :: Board -> Colour -> Word64
+isolatedV b c = w .&. complement (spansV c w)
+  where
+    w = piece b (c, P)
+
+doubledForward :: Board -> Colour -> Word64
+doubledForward b c = w .&. spansForward c w
+  where
+    w = piece b (c, P)
+
+doubledBackward :: Board -> Colour -> Word64
+doubledBackward b c = w .&. spansBackward c w
+  where
+    w = piece b (c, P)
