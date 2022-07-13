@@ -38,15 +38,15 @@ rankPromote c = rankFromRear c 7
 -- |
 ahead :: Colour -> Square -> Square
 ahead White = toEnum . (+) 8 . fromEnum
-ahead Black = toEnum . (-) 8 . fromEnum
+ahead Black = toEnum . (+) (-8) . fromEnum
 
 aheadU :: Colour -> Square -> Square
 aheadU White = toEnum . (+) 9 . fromEnum
-aheadU Black = toEnum . (-) 9 . fromEnum
+aheadU Black = toEnum . (+) (-9) . fromEnum
 
 aheadV :: Colour -> Square -> Square
 aheadV White = toEnum . (+) 7 . fromEnum
-aheadV Black = toEnum . (-) 7 . fromEnum
+aheadV Black = toEnum . (+) (-7) . fromEnum
 
 behind :: Colour -> Square -> Square
 behind c = ahead (opposite c)
