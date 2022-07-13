@@ -3,8 +3,10 @@ Module      : Data.Pawn
 Description :
 -}
 module Data.Pawn
-  ( rankFromRear
+  ( rankFromRear, rankPromote
 
+  , ahead, aheadU, aheadV
+  , behind, behindU, behindV
   , forward, forwardU, forwardV, forwardUV
   , backward, backwardU, backwardV, backwardUV
 
@@ -29,6 +31,31 @@ import Data.Word
 rankFromRear :: Colour -> Int -> Word64
 rankFromRear White i = lineY ! (toEnum $ 8 * i)
 rankFromRear Black i = lineY ! (toEnum $ 8 * (7 - i))
+
+rankPromote :: Colour -> Word64
+rankPromote c = rankFromRear c 7
+
+-- |
+ahead :: Colour -> Square -> Square
+ahead White = toEnum . (+) 8 . fromEnum
+ahead Black = toEnum . (-) 8 . fromEnum
+
+aheadU :: Colour -> Square -> Square
+aheadU White = toEnum . (+) 9 . fromEnum
+aheadU Black = toEnum . (-) 9 . fromEnum
+
+aheadV :: Colour -> Square -> Square
+aheadV White = toEnum . (+) 7 . fromEnum
+aheadV Black = toEnum . (-) 7 . fromEnum
+
+behind :: Colour -> Square -> Square
+behind c = ahead (opposite c)
+
+behindU :: Colour -> Square -> Square
+behindU c = aheadU (opposite c)
+
+behindV :: Colour -> Square -> Square
+behindV c = aheadV (opposite c)
 
 -- |
 forward :: Colour -> Word64 -> Word64

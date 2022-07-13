@@ -23,11 +23,6 @@ module Data.Board
   , active
   , attacksFrom, attacksTo, attacking, attacked
 
-  -- , sightedX, sightedY, sightedU, sightedV
-  -- , xrayX, xrayY, xrayU, xrayV
-  -- , xraying, xrayed
-  -- , between, blocking
-
   , isCastleOpen
 
   , checks, inCheck
@@ -208,8 +203,20 @@ unoccupied b = complement $ occupied b
 
 -- |
 pieceAt :: Board -> Square -> Maybe (Colour, Piece)
-pieceAt b sq = find (\ (c, p) -> hasSquare (piece b (c, p)) sq)
-               $ range (minBound, maxBound)
+pieceAt b sq
+  | hasSquare (piece b (White, P)) sq = Just (White, P)
+  | hasSquare (piece b (White, N)) sq = Just (White, N)
+  | hasSquare (piece b (White, B)) sq = Just (White, B)
+  | hasSquare (piece b (White, R)) sq = Just (White, R)
+  | hasSquare (piece b (White, Q)) sq = Just (White, Q)
+  | hasSquare (piece b (White, K)) sq = Just (White, K)
+  | hasSquare (piece b (Black, P)) sq = Just (Black, P)
+  | hasSquare (piece b (Black, N)) sq = Just (Black, N)
+  | hasSquare (piece b (Black, B)) sq = Just (Black, B)
+  | hasSquare (piece b (Black, R)) sq = Just (Black, R)
+  | hasSquare (piece b (Black, Q)) sq = Just (Black, Q)
+  | hasSquare (piece b (Black, K)) sq = Just (Black, K)
+  | otherwise                         = Nothing
 
 (!?) :: Board -> Square -> Maybe (Colour, Piece)
 (!?) b sq = pieceAt b sq
@@ -333,69 +340,6 @@ attacking b c = bitUnion $ fmap (attacksFrom b) $ decodeSquares $ colour b c
 attacked :: Board -> Colour -> Word64
 attacked b c = attacking b $ opposite c
 
--- | Xray
--- sightedX :: Board -> Square -> [Square]
--- sightedX b sq = decodeSquares $ slideX b sq .&. occupied b
-
--- sightedY :: Board -> Square -> [Square]
--- sightedY b sq = decodeSquares $ slideY b sq .&. occupied b
-
--- sightedU :: Board -> Square -> [Square]
--- sightedU b sq = decodeSquares $ slideU b sq .&. occupied b
-
--- sightedV :: Board -> Square -> [Square]
--- sightedV b sq = decodeSquares $ slideV b sq .&. occupied b
-
--- xrayWith :: Board -> Square -> (Board -> Square -> [Square]) -> [(Square, Square)]
--- xrayWith b sq sight
---   = concat $ fmap (\ sq' -> zip (repeat sq') $ g sq') $ sight b sq
---   where
---     g sq' = filter (\ sq'' -> compare sq sq' == compare sq' sq'') $ sight b sq'
-
--- xrayX :: Board -> Square -> [(Square, Square)]
--- xrayX b sq = xrayWith b sq sightedX
-
--- xrayY :: Board -> Square -> [(Square, Square)]
--- xrayY b sq = xrayWith b sq sightedY
-
--- xrayU :: Board -> Square -> [(Square, Square)]
--- xrayU b sq = xrayWith b sq sightedU
-
--- xrayV :: Board -> Square -> [(Square, Square)]
--- xrayV b sq = xrayWith b sq sightedV
-
--- xraying :: Board -> Square -> [(Square, Square)]
--- xraying b sq = maybe [] (f . snd) (b !? sq)
---   where
---     f B = xrayU b sq ++ xrayV b sq
---     f R = xrayX b sq ++ xrayY b sq
---     f Q = xrayU b sq ++ xrayV b sq ++ xrayX b sq ++ xrayY b sq
---     f _ = []
-
--- xrayed :: Board -> Square -> [(Square, Square)]
--- xrayed b sq = xrayedB ++ xrayedR
---   where
---     xrayedB = filter (isSquareSlideB b . snd) $ xrayU b sq ++ xrayV b sq
---     xrayedR = filter (isSquareSlideR b . snd) $ xrayX b sq ++ xrayY b sq
-
--- between :: Board -> Square -> [(Square, Square)]
--- between b sq =
---   fmap (\ sqs -> (head sqs, head $ tail sqs))
---   $ filter ((==) 2 . length)
---   $ fmap (\ f -> f b sq) [sightedX, sightedY, sightedU, sightedV]
-
--- blocking :: Board -> Square -> [(Square, Square)]
--- blocking b sq
---   | hasSquare (occupied b) sq = filter pred $ between b sq
---   | otherwise                 = []
---   where
---     predB sq' sq'' =
---       (alignedUV sq' sq'') && (isSquareSlideB b sq' || isSquareSlideB b sq'')
---     predR sq' sq'' =
---       (alignedXY sq' sq'') && (isSquareSlideR b sq' || isSquareSlideR b sq'')
---     pred (sq', sq'') =
---       areHostile b sq' sq'' && (predB sq' sq'' || predR sq' sq'')
-
 -- | Castling
 isCastleOpen :: Board -> (Colour, Side) -> Bool
 isCastleOpen b (c, s) = hasK && hasR && isLineOpen && isLineSafe
@@ -459,9 +403,11 @@ pinMask b sq = maybe (complement zeroBits) f (b !? sq)
       | hasSquare (pinnedV b c) sq = slideV b sq
       | otherwise                  = complement zeroBits
 
-mask :: Board -> Square -> (Colour, Piece) -> Word64
-mask b sq (c, K) = kingMask b c
-mask b sq (c, p) = checkMask b c .&. pinMask b sq
+mask :: Board -> Square -> Word64
+mask b sq = maybe zeroBits f (b !? sq)
+  where
+    f (c, K) = kingMask b c
+    f (c, p) = checkMask b c .&. pinMask b sq
 
 -- | Moves
 -- scope :: Board -> Square -> (Colour, Piece) -> Word64

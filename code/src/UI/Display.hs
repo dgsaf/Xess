@@ -6,6 +6,7 @@ module UI.Display
   ( display
   , displayWord
   , displayWordsH, displayWordsV, displayWordsHV
+  , displayWordsWith
   , displayBoard, displayBoardPieces
   ) where
 
@@ -56,6 +57,9 @@ displayWordsV ws = joinV $ fmap displayWord ws
 
 displayWordsHV :: [[Word64]] -> [String]
 displayWordsHV wss = joinV . fmap (joinH . fmap displayWord) $ wss
+
+displayWordsWith :: (Square -> Word64) -> [String]
+displayWordsWith f = displayWordsHV $ fmap (fmap f) ranks
 
 -- |
 displayBoard :: Board -> [String]

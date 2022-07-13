@@ -38,7 +38,14 @@ encodeSquaresBy :: (Square -> Bool) -> Word64
 encodeSquaresBy pred = encodeSquares $ filter pred enumSquares
 
 decodeSquares :: Word64 -> [Square]
-decodeSquares w = filter (testBit w . fromEnum) enumSquares
+-- decodeSquares w = filter (testBit w . fromEnum) enumSquares
+decodeSquares w = fmap toEnum $ f 0 w
+  where
+    f i w'
+      | t == 64   = []
+      | otherwise = (i + t) : f (i + t + 1) (shiftR w' (t + 1))
+      where
+        t = countTrailingZeros w'
 
 -- | Building Arrays of Bitboards
 buildWith :: (IArray a Word64) => (Square -> [Square]) -> a Square Word64
