@@ -8,51 +8,44 @@ module Data.Board
   , toggle, insertPiece, removePiece, clearSquare
 
   , piece, colour, occupied
-  , slideX, slideY, slideU, slideV
   , hostile, engageable, unoccupied
   , pieceAt, (!?), locateKing
-  , areFriendly, areHostile, isSquareSlideR, isSquareSlideB
+  , areFriendly, areHostile
 
-  , quietP
-  , activeP, activeN, activeK
+  , slideX, slideY, slideU, slideV
+  , slidingPiecesB, slidingPiecesR
+  , slidesX, slidesY, slidesU, slidesV
+
+  , stepP, pushP, activeP, activePU, activePV
+  , activeN, activeK
   , activeB, activeR, activeQ
 
   , active
   , attacksFrom, attacksTo, attacking, attacked
 
-  , sightedX, sightedY, sightedU, sightedV
-  , xrayX, xrayY, xrayU, xrayV
-  , xraying, xrayed
+  -- , sightedX, sightedY, sightedU, sightedV
+  -- , xrayX, xrayY, xrayU, xrayV
+  -- , xraying, xrayed
   -- , between, blocking
 
   , isCastleOpen
 
-  , checks, inCheck, pins
+  , checks, inCheck
+  , pinnedX, pinnedY, pinnedU, pinnedV
+  , pinnedB, pinnedR, pinned
   , checkMask, kingMask, pinMask, mask
 
-  , scope
+  -- , scope
   -- , scopeEP, scopeCastle
 
   , toPieceList, fromPieceList
   , toArray, fromArray
-
-  --
-  , rankFromRear
-  , forward, forwardU, forwardV
-  , backward, backwardU, backwardV
-  , stepP, pushP, activePU, activePV
-  , fillsForward, fillsBackward
-  , spansForward, spansForwardU, spansForwardV
-  , spansBackward, spansBackwardU, spansBackwardV
-  , spans, spansU, spansV
-  , interspan
-  , isolated, isolatedU, isolatedV
-  , doubledForward, doubledBackward
   ) where
 
 import Data.Bitboard
 import Data.Castle
 import Data.Colour
+import Data.Pawn
 import Data.Piece
 import Data.Rotated
 import Data.Square
@@ -203,19 +196,6 @@ colour b Black = _black b
 occupied :: Board -> Word64
 occupied b = view $ _rotOccupied b
 
--- | Sliding
-slideX :: Board -> Square -> Word64
-slideX b sq = visibleX (_rotOccupied b) sq `clearBit` fromEnum sq
-
-slideY :: Board -> Square -> Word64
-slideY b sq = visibleY (_rotOccupied b) sq `clearBit` fromEnum sq
-
-slideU :: Board -> Square -> Word64
-slideU b sq = visibleU (_rotOccupied b) sq `clearBit` fromEnum sq
-
-slideV :: Board -> Square -> Word64
-slideV b sq = visibleV (_rotOccupied b) sq `clearBit` fromEnum sq
-
 -- | Derived Properties
 hostile :: Board -> Colour -> Word64
 hostile b c = colour b (opposite c)
@@ -255,29 +235,54 @@ areHostile b sq sq' = fromMaybe False $
     (c', p') <- b !? sq'
     return (c /= c')
 
-isSquareSlideR :: Board -> Square -> Bool
-isSquareSlideR b sq = maybe False (isSlideR . snd) (b !? sq)
+-- | Sliding
+slideX :: Board -> Square -> Word64
+slideX b sq = visibleX (_rotOccupied b) sq `clearBit` fromEnum sq
 
-isSquareSlideB :: Board -> Square -> Bool
-isSquareSlideB b sq = maybe False (isSlideB . snd) (b !? sq)
+slideY :: Board -> Square -> Word64
+slideY b sq = visibleY (_rotOccupied b) sq `clearBit` fromEnum sq
+
+slideU :: Board -> Square -> Word64
+slideU b sq = visibleU (_rotOccupied b) sq `clearBit` fromEnum sq
+
+slideV :: Board -> Square -> Word64
+slideV b sq = visibleV (_rotOccupied b) sq `clearBit` fromEnum sq
+
+slidingPiecesB :: Board -> Colour -> Word64
+slidingPiecesB b c = piece b (c, B) .|. piece b (c, Q)
+
+slidingPiecesR :: Board -> Colour -> Word64
+slidingPiecesR b c = piece b (c, R) .|. piece b (c, Q)
+
+slidesX :: Board -> Colour -> Word64
+slidesX b c = bitUnion $ fmap (slideX b) . decodeSquares $ slidingPiecesR b c
+
+slidesY :: Board -> Colour -> Word64
+slidesY b c = bitUnion $ fmap (slideY b) . decodeSquares $ slidingPiecesR b c
+
+slidesU :: Board -> Colour -> Word64
+slidesU b c = bitUnion $ fmap (slideU b) . decodeSquares $ slidingPiecesB b c
+
+slidesV :: Board -> Colour -> Word64
+slidesV b c = bitUnion $ fmap (slideV b) . decodeSquares $ slidingPiecesB b c
+
+-- | Pawn
+stepP :: Board -> Colour -> Word64
+stepP b c = stepForward (occupied b) c (piece b (c, P))
+
+pushP :: Board -> Colour -> Word64
+pushP b c = pushForward (occupied b) c (piece b (c, P))
+
+activeP :: Board -> Colour -> Word64
+activeP b c = forwardUV c (piece b (c, P))
+
+activePU :: Board -> Colour -> Word64
+activePU b c = forwardU c (piece b (c, P))
+
+activePV :: Board -> Colour -> Word64
+activePV b c = forwardV c (piece b (c, P))
 
 -- | Static
-quietP :: Colour -> UArray Square Word64
-quietP c = buildWith (\ sq -> translationsXY (ts c sq) sq)
-  where
-    ts White sq
-      | coordY sq == 1 = [(0, 1), (0, 2)]
-      | otherwise      = [(0, 1)]
-    ts Black sq
-      | coordY sq == 6 = [(0, -1), (0, -2)]
-      | otherwise      = [(0, -1)]
-
-activeP :: Colour -> UArray Square Word64
-activeP c = buildWith (translationsXY (ts c))
-  where
-    ts White = [(-1, 1), (1, 1)]
-    ts Black = [(-1, -1), (1, -1)]
-
 activeN :: UArray Square Word64
 activeN = buildWith (translationsXY ts)
   where
@@ -300,7 +305,7 @@ activeQ b sq = activeB b sq .|. activeR b sq
 
 -- | Attack
 active :: Board -> Square -> (Colour, Piece) -> Word64
-active b sq (c, P) = activeP c ! sq
+active b sq (c, P) = forwardUV c (encodeSquare sq)
 active b sq (c, N) = activeN ! sq
 active b sq (c, B) = activeB b sq
 active b sq (c, R) = activeR b sq
@@ -311,7 +316,16 @@ attacksFrom :: Board -> Square -> Word64
 attacksFrom b sq = maybe zeroBits (active b sq) (b !? sq)
 
 attacksTo :: Board -> Square -> Word64
-attacksTo b sq = encodeSquaresBy (\ sq' -> hasSquare (attacksFrom b sq') sq)
+attacksTo b sq = bitUnion [aP, aN, aB, aR, aQ, aK]
+  where
+    f p = (piece b (White, p)) .|. (piece b (Black, p))
+    aN = (activeN ! sq) .&. f N
+    aB = (activeB b sq) .&. f B
+    aR = (activeR b sq) .&. f R
+    aQ = (activeQ b sq) .&. f Q
+    aK = (activeK ! sq) .&. f K
+    g c = forwardUV c (encodeSquare sq) .&. piece b (opposite c, P)
+    aP = (g White .|. g Black)
 
 attacking :: Board -> Colour -> Word64
 attacking b c = bitUnion $ fmap (attacksFrom b) $ decodeSquares $ colour b c
@@ -320,49 +334,49 @@ attacked :: Board -> Colour -> Word64
 attacked b c = attacking b $ opposite c
 
 -- | Xray
-sightedX :: Board -> Square -> [Square]
-sightedX b sq = decodeSquares $ slideX b sq .&. occupied b
+-- sightedX :: Board -> Square -> [Square]
+-- sightedX b sq = decodeSquares $ slideX b sq .&. occupied b
 
-sightedY :: Board -> Square -> [Square]
-sightedY b sq = decodeSquares $ slideY b sq .&. occupied b
+-- sightedY :: Board -> Square -> [Square]
+-- sightedY b sq = decodeSquares $ slideY b sq .&. occupied b
 
-sightedU :: Board -> Square -> [Square]
-sightedU b sq = decodeSquares $ slideU b sq .&. occupied b
+-- sightedU :: Board -> Square -> [Square]
+-- sightedU b sq = decodeSquares $ slideU b sq .&. occupied b
 
-sightedV :: Board -> Square -> [Square]
-sightedV b sq = decodeSquares $ slideV b sq .&. occupied b
+-- sightedV :: Board -> Square -> [Square]
+-- sightedV b sq = decodeSquares $ slideV b sq .&. occupied b
 
-xrayWith :: Board -> Square -> (Board -> Square -> [Square]) -> [(Square, Square)]
-xrayWith b sq sight
-  = concat $ fmap (\ sq' -> zip (repeat sq') $ g sq') $ sight b sq
-  where
-    g sq' = filter (\ sq'' -> compare sq sq' == compare sq' sq'') $ sight b sq'
+-- xrayWith :: Board -> Square -> (Board -> Square -> [Square]) -> [(Square, Square)]
+-- xrayWith b sq sight
+--   = concat $ fmap (\ sq' -> zip (repeat sq') $ g sq') $ sight b sq
+--   where
+--     g sq' = filter (\ sq'' -> compare sq sq' == compare sq' sq'') $ sight b sq'
 
-xrayX :: Board -> Square -> [(Square, Square)]
-xrayX b sq = xrayWith b sq sightedX
+-- xrayX :: Board -> Square -> [(Square, Square)]
+-- xrayX b sq = xrayWith b sq sightedX
 
-xrayY :: Board -> Square -> [(Square, Square)]
-xrayY b sq = xrayWith b sq sightedY
+-- xrayY :: Board -> Square -> [(Square, Square)]
+-- xrayY b sq = xrayWith b sq sightedY
 
-xrayU :: Board -> Square -> [(Square, Square)]
-xrayU b sq = xrayWith b sq sightedU
+-- xrayU :: Board -> Square -> [(Square, Square)]
+-- xrayU b sq = xrayWith b sq sightedU
 
-xrayV :: Board -> Square -> [(Square, Square)]
-xrayV b sq = xrayWith b sq sightedV
+-- xrayV :: Board -> Square -> [(Square, Square)]
+-- xrayV b sq = xrayWith b sq sightedV
 
-xraying :: Board -> Square -> [(Square, Square)]
-xraying b sq = maybe [] (f . snd) (b !? sq)
-  where
-    f B = xrayU b sq ++ xrayV b sq
-    f R = xrayX b sq ++ xrayY b sq
-    f Q = xrayU b sq ++ xrayV b sq ++ xrayX b sq ++ xrayY b sq
-    f _ = []
+-- xraying :: Board -> Square -> [(Square, Square)]
+-- xraying b sq = maybe [] (f . snd) (b !? sq)
+--   where
+--     f B = xrayU b sq ++ xrayV b sq
+--     f R = xrayX b sq ++ xrayY b sq
+--     f Q = xrayU b sq ++ xrayV b sq ++ xrayX b sq ++ xrayY b sq
+--     f _ = []
 
-xrayed :: Board -> Square -> [(Square, Square)]
-xrayed b sq = xrayedB ++ xrayedR
-  where
-    xrayedB = filter (isSquareSlideB b . snd) $ xrayU b sq ++ xrayV b sq
-    xrayedR = filter (isSquareSlideR b . snd) $ xrayX b sq ++ xrayY b sq
+-- xrayed :: Board -> Square -> [(Square, Square)]
+-- xrayed b sq = xrayedB ++ xrayedR
+--   where
+--     xrayedB = filter (isSquareSlideB b . snd) $ xrayU b sq ++ xrayV b sq
+--     xrayedR = filter (isSquareSlideR b . snd) $ xrayX b sq ++ xrayY b sq
 
 -- between :: Board -> Square -> [(Square, Square)]
 -- between b sq =
@@ -384,13 +398,14 @@ xrayed b sq = xrayedB ++ xrayedR
 
 -- | Castling
 isCastleOpen :: Board -> (Colour, Side) -> Bool
-isCastleOpen b (c, s) =
-  hasSquare (piece b (c, K)) sqK && hasSquare (piece b (c, R)) sqR
-  && hasSquare (slideY b sqR) sqK
-  && ((attacked b c .&. lineBetween sqK sqK') == zeroBits)
+isCastleOpen b (c, s) = hasK && hasR && isLineOpen && isLineSafe
   where
     (sqK, sqK') = castleSquaresK (c, s)
     (sqR, sqR') = castleSquaresR (c, s)
+    hasK = hasSquare (piece b (c, K)) sqK
+    hasR = hasSquare (piece b (c, R)) sqR
+    isLineOpen = hasSquare (slideY b sqR) sqK
+    isLineSafe = (attacked b c .&. lineBetween sqK sqK') == zeroBits
 
 -- | Check
 checks :: Board -> Colour -> Word64
@@ -400,251 +415,6 @@ inCheck :: Board -> Colour -> Bool
 inCheck b c = checks b c /= zeroBits
 
 -- | Pin
-pins :: Board -> Colour -> [(Square, Square)]
-pins b c =
-  filter (\ (sq, sq') -> areFriendly b sqK sq && areHostile b sqK sq')
-  $ xrayed b sqK
-  where
-    sqK = locateKing b c
-
--- | Masks
-checkMask :: Board -> Colour -> Word64
-checkMask b c =
-  bitIntersect . fmap (\ sq -> f sq $ snd . fromJust $ b !? sq) . decodeSquares
-  $ checks b c
-  where
-    sqK = locateKing b c
-    f sq N = square ! sq
-    f sq _ = lineBetween sqK sq `clearBit` fromEnum sqK
-
-kingMask :: Board -> Colour -> Word64
-kingMask b c = complement $ attacked (clearSquare (locateKing b c) b) c
-
-pinMask :: Board -> Colour -> Square -> Word64
-pinMask b c sq =
-  maybe
-    (complement zeroBits)
-    (\ (sq', sq'') -> lineBetween sqK sq'' `clearBit` fromEnum sqK)
-    $ find ((==) sq . fst) $ pins b c
-  where
-    sqK = locateKing b c
-
-mask :: Board -> Square -> (Colour, Piece) -> Word64
-mask b sq (c, K) = kingMask b c
-mask b sq (c, p) = checkMask b c .&. pinMask b c sq
-
--- | Moves
-scope :: Board -> Square -> (Colour, Piece) -> Word64
-scope b sq (c, P) = (activeP c ! sq .&. hostile b c)
-                    .|. (quietP c ! sq .&. unoccupied b .&. slideX b sq)
-scope b sq (c, p) = active b sq (c, p) .&. engageable b c
-
--- scopeEP :: Board -> Square -> (Colour, Piece) -> Square -> Word64
--- scopeEP b sq (c, P) sqEP = (activeP c ! sq .&. hostileEP c)
---   where
---     hostileEP White = (hostile b c `shiftL` 8) .&. (square ! sqEP)
---     hostileEP Black = (hostile b c `shiftR` 8) .&. (square ! sqEP)
--- scopeEP b sq (c, _) sqEP = zeroBits
-
--- scopeCastle :: Board -> (Colour, Side) -> Word64
--- scopeCastle b (c, s)
---   | isCastleOpen b (c, s) = square ! (snd $ castleSquaresK (c, s))
---   | otherwise             = zeroBits
-
--- | Representations
-toPieceList :: Board -> [(Colour, Piece, Square)]
-toPieceList b =
-  concat $ fmap
-    (\ (c, p) -> fmap (\ sq -> (c, p, sq)) $ decodeSquares $ piece b (c, p))
-    $ range (minBound, maxBound)
-
-fromPieceList :: [(Colour, Piece, Square)] -> Board
-fromPieceList pl = foldl' (\ b (c, p, sq) -> toggle (c, p) sq b) emptyBoard pl
-
-toArray :: Board -> Array Square (Maybe (Colour, Piece))
-toArray b = buildSquaresArray (b !?)
-
-fromArray :: Array Square (Maybe (Colour, Piece)) -> Board
-fromArray arr =
-  fromPieceList
-  $ mapMaybe (\ sq -> fmap (\ (c, p) -> (c, p, sq)) (arr ! sq)) enumSquares
-
---------------------------------------------------------------------------------
--- | Under Construction
-
--- shiftX
--- shiftY
-
--- stepsP
--- attacksP
--- slideAttacksX
--- slideAttacksY
--- slideAttacksU
--- slideAttacksV
-
--- |
-rankFromRear :: Colour -> Int -> Word64
-rankFromRear White i = lineY ! (toEnum $ 8 * i)
-rankFromRear Black i = lineY ! (toEnum $ 8 * (7 - i))
-
--- |
-forward :: Colour -> Word64 -> Word64
-forward White = (flip shiftL) 8
-forward Black = (flip shiftR) 8
-
-forwardU :: Colour -> Word64 -> Word64
-forwardU White = (flip shiftL) 9 . (.&.) (complement (lineX ! toEnum 7))
-forwardU Black = (flip shiftR) 9 . (.&.) (complement (lineX ! toEnum 0))
-
-forwardV :: Colour -> Word64 -> Word64
-forwardV White = (flip shiftL) 7 . (.&.) (complement (lineX ! toEnum 0))
-forwardV Black = (flip shiftR) 7 . (.&.) (complement (lineX ! toEnum 7))
-
-forwardUV :: Colour -> Word64 -> Word64
-forwardUV c w = forwardU c w .|. forwardV c w
-
-backward :: Colour -> Word64 -> Word64
-backward c = forward (opposite c)
-
-backwardU :: Colour -> Word64 -> Word64
-backwardU c = forwardU (opposite c)
-
-backwardV :: Colour -> Word64 -> Word64
-backwardV c = forwardV (opposite c)
-
-backwardUV :: Colour -> Word64 -> Word64
-backwardUV c w = backwardU c w .|. backwardV c w
-
--- |
-stepP :: Board -> Colour -> Word64
-stepP b c = unoccupied b .&. forward c (piece b (c, P))
-
-pushP :: Board -> Colour -> Word64
-pushP b c = rankFromRear c 3 .&. (f . f $ piece b (c, P))
-  where
-    f w = forward c w .&. unoccupied b
-
-activePU :: Board -> Colour -> Word64
-activePU b c = forwardU c (piece b (c, P))
-
-activePV :: Board -> Colour -> Word64
-activePV b c = forwardV c (piece b (c, P))
-
--- |
-fillsForward :: Colour -> Word64 -> Word64
-fillsForward c w = foldl' (\ w' _ -> w' .|. forward c w') w [0 .. 7]
-
-fillsBackward :: Colour -> Word64 -> Word64
-fillsBackward c w = foldl' (\ w' _ -> w' .|. backward c w') w [0 .. 7]
-
--- |
-spansForward :: Colour -> Word64 -> Word64
-spansForward c w = fillsForward c (forward c w)
-
-spansForwardU :: Colour -> Word64 -> Word64
-spansForwardU c w = fillsForward c (forwardU c w)
-
-spansForwardV :: Colour -> Word64 -> Word64
-spansForwardV c w = fillsForward c (forwardV c w)
-
-spansBackward :: Colour -> Word64 -> Word64
-spansBackward c w = fillsBackward c (backward c w)
-
-spansBackwardU :: Colour -> Word64 -> Word64
-spansBackwardU c w = spansBackward c (forwardU c w)
-
-spansBackwardV :: Colour -> Word64 -> Word64
-spansBackwardV c w = spansBackward c (forwardV c w)
-
--- |
-spans :: Colour -> Word64 -> Word64
-spans c w = fillsForward c w .|. fillsBackward c w
-
-spansU :: Colour -> Word64 -> Word64
-spansU c w = spansForwardU c w .|. spansBackwardU c w
-
-spansV :: Colour -> Word64 -> Word64
-spansV c w = spansForwardV c w .|. spansBackwardV c w
-
--- |
-interspan :: Board -> Word64
-interspan b = sf White .&. sf Black
-  where
-    sf c = spansForward c (piece b (c, P))
-
-isolated :: Board -> Colour -> Word64
-isolated b c = w .&. complement (spansU c w .|. spansV c w)
-  where
-    w = piece b (c, P)
-
-isolatedU :: Board -> Colour -> Word64
-isolatedU b c = w .&. complement (spansU c w)
-  where
-    w = piece b (c, P)
-
-isolatedV :: Board -> Colour -> Word64
-isolatedV b c = w .&. complement (spansV c w)
-  where
-    w = piece b (c, P)
-
-doubledForward :: Board -> Colour -> Word64
-doubledForward b c = w .&. spansForward c w
-  where
-    w = piece b (c, P)
-
-doubledBackward :: Board -> Colour -> Word64
-doubledBackward b c = w .&. spansBackward c w
-  where
-    w = piece b (c, P)
-
--- | Attacks to/from with pawn sets
-active :: Board -> Square -> (Colour, Piece) -> Word64
-active b sq (c, p) =
-  case p of
-    P -> forwardUV c (encodeSquare sq)
-    N -> activeN ! sq
-    B -> activeB b sq
-    R -> activeR b sq
-    Q -> activeQ b sq
-    K -> activeK ! sq
-
-attacksFrom :: Board -> Square -> Word64
-attacksFrom b sq = maybe zeroBits (active b sq) (b !? sq)
-
-attacksTo :: Board -> Square -> Word64
-attacksTo b sq = bitUnion [attackP, attackN, attackB, attackR, attackQ, attackK]
-  where
-    attackP =
-      let
-        w = encodeSquare sq
-        g = \ c -> forwardUV c w .&. piece b (opposite c, P)
-      in (g White .|. g Black)
-    f p = (piece b (White, p)) .|. (piece b (Black, p))
-    attackN = (activeN ! sq) .&. f N
-    attackB = (activeB b sq) .&. f B
-    attackR = (activeR b sq) .&. f R
-    attackQ = (activeQ b sq) .&. f Q
-    attackK = (activeK ! sq) .&. f K
-
--- | Alternative Pin
-slidingPiecesB :: Board -> Colour -> Word64
-slidingPiecesB b c = piece b (c, B) .|. piece b (c, Q)
-
-slidingPiecesR :: Board -> Colour -> Word64
-slidingPiecesR b c = piece b (c, R) .|. piece b (c, Q)
-
-slidesX :: Board -> Colour -> Word64
-slidesX b c = fmap (slideX b) . decodeSquares $ slidingPiecesR b c
-
-slidesY :: Board -> Colour -> Word64
-slidesY b c = fmap (slideY b) . decodeSquares $ slidingPiecesR b c
-
-slidesU :: Board -> Colour -> Word64
-slidesU b c = fmap (slideU b) . decodeSquares $ slidingPiecesB b c
-
-slidesV :: Board -> Colour -> Word64
-slidesV b c = fmap (slideV b) . decodeSquares $ slidingPiecesB b c
-
 pinnedX :: Board -> Colour -> Word64
 pinnedX b c = slideX b (locateKing b c) .&. slidesX b (opposite c)
 
@@ -666,6 +436,19 @@ pinnedR b c = pinnedX b c .|. pinnedY b c
 pinned :: Board -> Colour -> Word64
 pinned b c = pinnedB b c .|. pinnedR b c
 
+-- | Masks
+checkMask :: Board -> Colour -> Word64
+checkMask b c =
+  bitIntersect . fmap (\ sq -> f sq $ snd . fromJust $ b !? sq) . decodeSquares
+  $ checks b c
+  where
+    sqK = locateKing b c
+    f sq N = square ! sq
+    f sq _ = lineBetween sqK sq `clearBit` fromEnum sqK
+
+kingMask :: Board -> Colour -> Word64
+kingMask b c = complement $ attacked (clearSquare (locateKing b c) b) c
+
 pinMask :: Board -> Square -> Word64
 pinMask b sq = maybe (complement zeroBits) f (b !? sq)
   where
@@ -675,3 +458,31 @@ pinMask b sq = maybe (complement zeroBits) f (b !? sq)
       | hasSquare (pinnedU b c) sq = slideU b sq
       | hasSquare (pinnedV b c) sq = slideV b sq
       | otherwise                  = complement zeroBits
+
+mask :: Board -> Square -> (Colour, Piece) -> Word64
+mask b sq (c, K) = kingMask b c
+mask b sq (c, p) = checkMask b c .&. pinMask b sq
+
+-- | Moves
+-- scope :: Board -> Square -> (Colour, Piece) -> Word64
+-- scope b sq (c, P) = (activeP c ! sq .&. hostile b c)
+--                     .|. (quietP c ! sq .&. unoccupied b .&. slideX b sq)
+-- scope b sq (c, p) = active b sq (c, p) .&. engageable b c
+
+-- | Representations
+toPieceList :: Board -> [(Colour, Piece, Square)]
+toPieceList b =
+  concat $ fmap
+    (\ (c, p) -> fmap (\ sq -> (c, p, sq)) $ decodeSquares $ piece b (c, p))
+    $ range (minBound, maxBound)
+
+fromPieceList :: [(Colour, Piece, Square)] -> Board
+fromPieceList pl = foldl' (\ b (c, p, sq) -> toggle (c, p) sq b) emptyBoard pl
+
+toArray :: Board -> Array Square (Maybe (Colour, Piece))
+toArray b = buildSquaresArray (b !?)
+
+fromArray :: Array Square (Maybe (Colour, Piece)) -> Board
+fromArray arr =
+  fromPieceList
+  $ mapMaybe (\ sq -> fmap (\ (c, p) -> (c, p, sq)) (arr ! sq)) enumSquares
