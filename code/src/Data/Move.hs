@@ -11,6 +11,17 @@ module Data.Move
   , mkCapture
   , mkCaptureEP
   , mkCapturePromote
+
+  , mkPromotes
+  , mkCapturePromotes
+
+  , genCastle
+  , genQuiet
+  , genPush
+  , genPromote
+  , genCapture
+  , genCaptureEP
+  , genCapturePromote
   ) where
 
 import Data.Castle
@@ -153,8 +164,8 @@ mkCapturePromotes sq sq' (c, cp) =
   fmap (mkCapturePromote sq sq' (c, cp)) [N, B, R, Q]
 
 -- |
-genMovesCastle :: Board -> Colour -> Castling -> [Move]
-genMovesCastle b c ct =
+genCastle :: Board -> Colour -> Castling -> [Move]
+genCastle b c ct =
   case (pred Short, pred Long) of
     (True, True)   -> mvS : mvL : []
     (True, False)  -> mvS : []
@@ -166,39 +177,39 @@ genMovesCastle b c ct =
     mvL = mkCastle (c, Long)
 
 -- ||||| NEED TO INCLUDE MASK
-genMovesQuiet :: Board -> Colour -> [Move]
-genMovesQuiet b c = genMovesQuietP b c ++ genMovesQuietNonP b c
+genQuiet :: Board -> Colour -> [Move]
+genQuiet b c = genQuietP b c ++ genQuietNonP b c
 
-genMovesQuietP :: Board -> Colour -> [Move]
-genMovesQuietP b c = fmap f . decodeSquares $ w
+genQuietP :: Board -> Colour -> [Move]
+genQuietP b c = fmap f . decodeSquares $ w
   where
     w = stepP b c .&. (complement $ rankPromote c)
     f sq = mkQuiet (behind c sq) sq
 
-genMovesQuietNonP :: Board -> Colour -> [Move]
-genMovesQuietNonP b c = concat . fmap f . decodeSquares $ w
+genQuietNonP :: Board -> Colour -> [Move]
+genQuietNonP b c = concat . fmap f . decodeSquares $ w
   where
     w = colour b c .&. (complement $ piece b (c, P))
     f sq = fmap (mkQuiet sq) . decodeSquares
            $ unoccupied b .&. attacksFrom b sq
 
-genMovesPush :: Board -> Colour -> [Move]
-genMovesPush b c = fmap f . decodeSquares $ w
+genPush :: Board -> Colour -> [Move]
+genPush b c = fmap f . decodeSquares $ w
   where
     w = pushP b c
     f sq = mkPush (behind c . behind c $ sq) sq
 
-genMovesPromote :: Board -> Colour -> [Move]
-genMovesPromote b c = concat . fmap f . decodeSquares $ w
+genPromote :: Board -> Colour -> [Move]
+genPromote b c = concat . fmap f . decodeSquares $ w
   where
     w = stepP b c .&. rankPromote c
     f sq = mkPromotes (behind c sq) sq
 
-genMovesCapture :: Board -> Colour -> [Move]
-genMovesCapture b c = genMovesCaptureP b c ++ genMovesCaptureNonP b c
+genCapture :: Board -> Colour -> [Move]
+genCapture b c = genCaptureP b c ++ genCaptureNonP b c
 
-genMovesCaptureP :: Board -> Colour -> [Move]
-genMovesCaptureP b c =
+genCaptureP :: Board -> Colour -> [Move]
+genCaptureP b c =
   (fmap fu . decodeSquares $ wu) ++ (fmap fv . decodeSquares $ wv)
   where
     wu = activePU b c .&. hostile b c .&. (complement $ rankPromote c)
@@ -206,22 +217,22 @@ genMovesCaptureP b c =
     fu sq = mkCapture (behindU c sq) sq (fromJust $ b !? sq)
     fv sq = mkCapture (behindV c sq) sq (fromJust $ b !? sq)
 
-genMovesCaptureNonP :: Board -> Colour -> [Move]
-genMovesCaptureNonP b c = concat . fmap f . decodeSquares $ w
+genCaptureNonP :: Board -> Colour -> [Move]
+genCaptureNonP b c = concat . fmap f . decodeSquares $ w
   where
     w = colour b c .&. (complement $ piece b (c, P))
     f sq = fmap (\sq' -> mkCapture sq sq' (fromJust $ b !? sq'))
            . decodeSquares $ hostile b c .&. attacksFrom b sq
 
-genMovesCaptureEP :: Board -> Colour -> Maybe Square -> [Move]
-genMovesCaptureEP b c Nothing     = []
-genMovesCaptureEP b c (Just sqEP) = fmap f . decodeSquares $ w
+genCaptureEP :: Board -> Colour -> Maybe Square -> [Move]
+genCaptureEP b c Nothing     = []
+genCaptureEP b c (Just sqEP) = fmap f . decodeSquares $ w
   where
     w = piece b (c, P) .&. (backwardUV c (encodeSquare sqEP))
     f sq = mkCaptureEP sq sqEP c
 
-genMovesCapturePromote :: Board -> Colour -> [Move]
-genMovesCapturePromote b c =
+genCapturePromote :: Board -> Colour -> [Move]
+genCapturePromote b c =
   (concat . fmap fu . decodeSquares $ wu)
   ++ (concat . fmap fv . decodeSquares $ wv)
   where
