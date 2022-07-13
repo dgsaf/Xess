@@ -410,13 +410,12 @@ pins b c =
 -- | Masks
 checkMask :: Board -> Colour -> Word64
 checkMask b c =
-  bitIntersect
-  $ fmap (\ sq -> mask sq $ snd . fromJust $ b !? sq)
-  $ decodeSquares $ checks b c
+  bitIntersect . fmap (\ sq -> f sq $ snd . fromJust $ b !? sq) . decodeSquares
+  $ checks b c
   where
     sqK = locateKing b c
-    mask sq N = square ! sq
-    mask sq _ = lineBetween sqK sq `clearBit` fromEnum sqK
+    f sq N = square ! sq
+    f sq _ = lineBetween sqK sq `clearBit` fromEnum sqK
 
 kingMask :: Board -> Colour -> Word64
 kingMask b c = complement $ attacked (clearSquare (locateKing b c) b) c
@@ -501,6 +500,9 @@ forwardV :: Colour -> Word64 -> Word64
 forwardV White = (flip shiftL) 7 . (.&.) (complement (lineX ! toEnum 0))
 forwardV Black = (flip shiftR) 7 . (.&.) (complement (lineX ! toEnum 7))
 
+forwardUV :: Colour -> Word64 -> Word64
+forwardUV c w = forwardU c w .|. forwardV c w
+
 backward :: Colour -> Word64 -> Word64
 backward c = forward (opposite c)
 
@@ -509,6 +511,9 @@ backwardU c = forwardU (opposite c)
 
 backwardV :: Colour -> Word64 -> Word64
 backwardV c = forwardV (opposite c)
+
+backwardUV :: Colour -> Word64 -> Word64
+backwardUV c w = backwardU c w .|. backwardV c w
 
 -- |
 stepP :: Board -> Colour -> Word64
@@ -591,3 +596,82 @@ doubledBackward :: Board -> Colour -> Word64
 doubledBackward b c = w .&. spansBackward c w
   where
     w = piece b (c, P)
+
+-- | Attacks to/from with pawn sets
+active :: Board -> Square -> (Colour, Piece) -> Word64
+active b sq (c, p) =
+  case p of
+    P -> forwardUV c (encodeSquare sq)
+    N -> activeN ! sq
+    B -> activeB b sq
+    R -> activeR b sq
+    Q -> activeQ b sq
+    K -> activeK ! sq
+
+attacksFrom :: Board -> Square -> Word64
+attacksFrom b sq = maybe zeroBits (active b sq) (b !? sq)
+
+attacksTo :: Board -> Square -> Word64
+attacksTo b sq = bitUnion [attackP, attackN, attackB, attackR, attackQ, attackK]
+  where
+    attackP =
+      let
+        w = encodeSquare sq
+        g = \ c -> forwardUV c w .&. piece b (opposite c, P)
+      in (g White .|. g Black)
+    f p = (piece b (White, p)) .|. (piece b (Black, p))
+    attackN = (activeN ! sq) .&. f N
+    attackB = (activeB b sq) .&. f B
+    attackR = (activeR b sq) .&. f R
+    attackQ = (activeQ b sq) .&. f Q
+    attackK = (activeK ! sq) .&. f K
+
+-- | Alternative Pin
+slidingPiecesB :: Board -> Colour -> Word64
+slidingPiecesB b c = piece b (c, B) .|. piece b (c, Q)
+
+slidingPiecesR :: Board -> Colour -> Word64
+slidingPiecesR b c = piece b (c, R) .|. piece b (c, Q)
+
+slidesX :: Board -> Colour -> Word64
+slidesX b c = fmap (slideX b) . decodeSquares $ slidingPiecesR b c
+
+slidesY :: Board -> Colour -> Word64
+slidesY b c = fmap (slideY b) . decodeSquares $ slidingPiecesR b c
+
+slidesU :: Board -> Colour -> Word64
+slidesU b c = fmap (slideU b) . decodeSquares $ slidingPiecesB b c
+
+slidesV :: Board -> Colour -> Word64
+slidesV b c = fmap (slideV b) . decodeSquares $ slidingPiecesB b c
+
+pinnedX :: Board -> Colour -> Word64
+pinnedX b c = slideX b (locateKing b c) .&. slidesX b (opposite c)
+
+pinnedY :: Board -> Colour -> Word64
+pinnedY b c = slideY b (locateKing b c) .&. slidesY b (opposite c)
+
+pinnedU :: Board -> Colour -> Word64
+pinnedU b c = slideU b (locateKing b c) .&. slidesU b (opposite c)
+
+pinnedV :: Board -> Colour -> Word64
+pinnedV b c = slideV b (locateKing b c) .&. slidesV b (opposite c)
+
+pinnedB :: Board -> Colour -> Word64
+pinnedB b c = pinnedU b c .|. pinnedV b c
+
+pinnedR :: Board -> Colour -> Word64
+pinnedR b c = pinnedX b c .|. pinnedY b c
+
+pinned :: Board -> Colour -> Word64
+pinned b c = pinnedB b c .|. pinnedR b c
+
+pinMask :: Board -> Square -> Word64
+pinMask b sq = maybe (complement zeroBits) f (b !? sq)
+  where
+    f (c, p)
+      | hasSquare (pinnedX b c) sq = slideX b sq
+      | hasSquare (pinnedY b c) sq = slideY b sq
+      | hasSquare (pinnedU b c) sq = slideU b sq
+      | hasSquare (pinnedV b c) sq = slideV b sq
+      | otherwise                  = complement zeroBits
