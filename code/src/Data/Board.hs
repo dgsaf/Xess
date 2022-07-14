@@ -114,12 +114,12 @@ defaultBoard =
   , _rotOccupied = mkRotWord64 occ
   }
   where
-    wp = lineY ! toEnum 8
-    wn = (square ! toEnum 1) .|. (square ! toEnum 6)
-    wb = (square ! toEnum 2) .|. (square ! toEnum 5)
-    wr = (square ! toEnum 0) .|. (square ! toEnum 7)
-    wq = square ! toEnum 3
-    wk = square ! toEnum 4
+    wp = encodeSquaresBy ((==) 1 . coordY)
+    wn = encodeSquares $ fmap toEnum [1, 6]
+    wb = encodeSquares $ fmap toEnum [2, 5]
+    wr = encodeSquares $ fmap toEnum [0, 7]
+    wq = encodeSquare $ toEnum 3
+    wk = encodeSquare $ toEnum 4
     bp = wp `shiftL` 40
     bn = wn `shiftL` 56
     bb = wb `shiftL` 56

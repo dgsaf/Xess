@@ -11,7 +11,7 @@ module Data.Square
 
   , translateXY, translationsXY
 
-  , distXY, distX, distY
+  , dispXY, dispX, dispY
   , norm
 
   , alignedX, alignedY, alignedXY
@@ -86,17 +86,17 @@ translationsXY :: [(Int, Int)] -> Square -> [Square]
 translationsXY ts sq = mapMaybe (\t -> translateXY t sq) ts
 
 -- | Coordinate Distance
-distXY :: Square -> Square -> (Int, Int)
-distXY sq sq' = (distX sq sq', distY sq sq')
+dispXY :: Square -> Square -> (Int, Int)
+dispXY sq sq' = (dispX sq sq', dispY sq sq')
 
-distX :: Square -> Square -> Int
-distX = (-) `on` (coordX)
+dispX :: Square -> Square -> Int
+dispX = (-) `on` (coordX)
 
-distY :: Square -> Square -> Int
-distY = (-) `on` (coordY)
+dispY :: Square -> Square -> Int
+dispY = (-) `on` (coordY)
 
 norm :: Square -> Square -> Int
-norm sq sq' = let (x, y) = distXY sq sq' in (abs x) + (abs y)
+norm sq sq' = let (x, y) = dispXY sq sq' in (abs x) + (abs y)
 
 -- | Alignment
 alignedX :: Square -> Square -> Bool

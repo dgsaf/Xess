@@ -14,6 +14,8 @@ import Data.Bitboard
 import Data.Board
 import Data.Castle
 import Data.Colour
+import Data.Move
+import Data.Pawn
 import Data.Piece
 import Data.Rotated
 import Data.Square
