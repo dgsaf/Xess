@@ -6,7 +6,7 @@ module Data.Move
   ( MoveFlag
 
   , Move
-  , _origin, _target, _moveFlag, _captured
+  , origin, target, moveFlag, captured
 
   , mkCastle
   , mkQuiet
@@ -70,6 +70,18 @@ data Move
   , _moveFlag :: MoveFlag
   , _captured :: Maybe (Colour, Piece)
   } deriving (Eq, Read, Show)
+
+origin :: Move -> Square
+origin = _origin
+
+target :: Move -> Square
+target = _target
+
+moveFlag :: Move -> MoveFlag
+moveFlag = _moveFlag
+
+captured :: Move -> Maybe (Colour, Piece)
+captured = _captured
 
 -- | Constructors
 mkCastle :: (Colour, Side) -> Move

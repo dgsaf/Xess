@@ -38,11 +38,11 @@ squareToAN sq = [chr $ 97 + coordX sq, chr $ 49 + coordY sq]
 moveToAN :: Board -> Move -> String
 moveToAN b mv =
   let
-    sq  = _origin mv
-    sq' = _target mv
+    sq  = origin mv
+    sq' = target mv
     mp  = fmap snd $ b !? sq
-    mp' = fmap snd $ _captured mv
-    mf  = _moveFlag mv
+    mp' = fmap snd $ captured mv
+    mf  = moveFlag mv
   in
     f sq mp ++ mid mp' ++ f sq' mp' ++ g mf
   where
