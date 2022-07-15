@@ -16,7 +16,6 @@ module Data.BoardState
 
   , applyMove
 
-  , genMoves
   , genMovesCastle
   , genMovesQuiet
   , genMovesPush
@@ -24,6 +23,20 @@ module Data.BoardState
   , genMovesCapture
   , genMovesCaptureEP
   , genMovesCapturePromote
+  , genMoves, genMovesDormant, genMovesTactical
+
+  , genStatesCastle
+  , genStatesQuiet
+  , genStatesPush
+  , genStatesPromote
+  , genStatesCapture
+  , genStatesCaptureEP
+  , genStatesCapturePromote
+  , genStates, genStatesDormant, genStatesTactical
+
+  , isCheckmate
+  , isStalemate
+  , isHalfmoveLimit
   ) where
 
 import Data.Bitboard
@@ -36,6 +49,7 @@ import Data.Piece
 import Data.Rotated
 import Data.Square
 
+import Data.List
 import Data.Maybe
 
 -- | Board State
@@ -188,13 +202,6 @@ applyMoveFullmove mv
   | otherwise               = ((+) 1)
 
 -- |
-genMoves :: BoardState -> [Move]
-genMoves bs =
-  concat $ fmap (\ f -> f bs)
-  [genMovesCastle
-  , genMovesQuiet, genMovesPush, genMovesPromote
-  , genMovesCapture, genMovesCaptureEP, genMovesCapturePromote]
-
 genMovesCastle :: BoardState -> [Move]
 genMovesCastle bs = genCastle (board bs) (colourToMove bs) (castling bs)
 
@@ -215,3 +222,78 @@ genMovesCaptureEP bs = genCaptureEP (board bs) (colourToMove bs) (squareEP bs)
 
 genMovesCapturePromote :: BoardState -> [Move]
 genMovesCapturePromote bs = genCapturePromote (board bs) (colourToMove bs)
+
+-- |
+genMoves :: BoardState -> [Move]
+genMoves bs = concat $ fmap (\ f -> f bs) fs
+  where
+    fs = [ genMovesCastle
+         , genMovesQuiet
+         , genMovesPush
+         , genMovesPromote
+         , genMovesCapture
+         , genMovesCaptureEP
+         , genMovesCapturePromote
+         ]
+
+genMovesDormant :: BoardState -> [Move]
+genMovesDormant bs = concat $ fmap (\ f -> f bs) fs
+  where
+    fs = [ genMovesCastle
+         , genMovesQuiet
+         , genMovesPush
+         ]
+
+genMovesTactical :: BoardState -> [Move]
+genMovesTactical bs = concat $ fmap (\ f -> f bs) fs
+  where
+    fs = [ genMovesPromote
+         , genMovesCapture
+         , genMovesCaptureEP
+         , genMovesCapturePromote
+         ]
+
+-- |
+genStatesCastle :: BoardState -> [BoardState]
+genStatesCastle bs = fmap (applyMove bs) $ genMovesCastle bs
+
+genStatesQuiet :: BoardState -> [BoardState]
+genStatesQuiet bs = fmap (applyMove bs) $ genMovesQuiet bs
+
+genStatesPush :: BoardState -> [BoardState]
+genStatesPush bs = fmap (applyMove bs) $ genMovesPush bs
+
+genStatesPromote :: BoardState -> [BoardState]
+genStatesPromote bs = fmap (applyMove bs) $ genMovesPromote bs
+
+genStatesCapture :: BoardState -> [BoardState]
+genStatesCapture bs = fmap (applyMove bs) $ genMovesCapture bs
+
+genStatesCaptureEP :: BoardState -> [BoardState]
+genStatesCaptureEP bs = fmap (applyMove bs) $ genMovesCaptureEP bs
+
+genStatesCapturePromote :: BoardState -> [BoardState]
+genStatesCapturePromote bs = fmap (applyMove bs) $ genMovesCapturePromote bs
+
+-- |
+genStates :: BoardState -> [BoardState]
+genStates bs = fmap (applyMove bs) $ genMoves bs
+
+genStatesDormant :: BoardState -> [BoardState]
+genStatesDormant bs = fmap (applyMove bs) $ genMovesDormant bs
+
+genStatesTactical :: BoardState -> [BoardState]
+genStatesTactical bs = fmap (applyMove bs) $ genMovesTactical bs
+
+-- |
+isCheckmate :: BoardState -> Bool
+isCheckmate bs =
+  null (genMoves bs) && inCheck (board bs) (colourToMove bs)
+
+isStalemate :: BoardState -> Bool
+isStalemate bs =
+  null (genMoves bs) && not (inCheck (board bs) (colourToMove bs))
+
+isHalfmoveLimit :: BoardState -> Bool
+isHalfmoveLimit bs =
+  not (null (genMoves bs)) && halfmove bs >= 100
