@@ -4,14 +4,16 @@ Description :
 -}
 module UI.Display
   ( display
-  , displayWord
-  , displayWordsH, displayWordsV, displayWordsHV
-  , displayWordsWith
+  , displaysH, displaysV, displaysHV
+
+  , displayWord, displayWordsSquares
+
   , displayBoard, displayBoardPieces
   ) where
 
 import Data.Bitboard
 import Data.Board
+import Data.BoardState
 import Data.Castle
 import Data.Colour
 import Data.Move
@@ -47,26 +49,27 @@ joinH grids =
 joinV :: [[String]] -> [String]
 joinV grids = concat . intersperse [""] $ grids
 
+displaysH :: (a -> [String]) -> [a] -> [String]
+displaysH f as = joinH . fmap f $ as
+
+displaysV :: (a -> [String]) -> [a] -> [String]
+displaysV f as = joinV . fmap f $ as
+
+displaysHV :: (a -> [String]) -> [[a]] -> [String]
+displaysHV f ass = joinV . fmap (joinH . fmap f) $ ass
+
 -- |
 displayWord :: Word64 -> [String]
 displayWord w = display (hasSquare w) (\ b -> if b then "x" else ".")
 
-displayWordsH :: [Word64] -> [String]
-displayWordsH ws = joinH $ fmap displayWord ws
-
-displayWordsV :: [Word64] -> [String]
-displayWordsV ws = joinV $ fmap displayWord ws
-
-displayWordsHV :: [[Word64]] -> [String]
-displayWordsHV wss = joinV . fmap (joinH . fmap displayWord) $ wss
-
-displayWordsWith :: (Square -> Word64) -> [String]
-displayWordsWith f = displayWordsHV $ fmap (fmap f) ranks
+displayWordsSquares :: (Square -> Word64) -> [String]
+displayWordsSquares f = displaysHV displayWord $ fmap (fmap f) ranks
 
 -- |
 displayBoard :: Board -> [String]
 displayBoard b = display (b !?) (maybe "." pieceToFEN)
 
 displayBoardPieces :: Board -> [String]
-displayBoardPieces b =
-  displayWordsHV [[piece b (c, p) | p <- [minBound ..]] | c <- [minBound ..]]
+displayBoardPieces b = displaysHV displayWord cpwss
+  where
+    cpwss = [[piece b (c, p) | p <- [minBound ..]] | c <- [minBound ..]]

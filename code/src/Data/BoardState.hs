@@ -3,7 +3,27 @@ Module      : Data.BoardState
 Description :
 -}
 module Data.BoardState
-  (
+  ( BoardState
+  , board
+  , colourToMove
+  , castling
+  , squareEP
+  , halfmove
+  , fullmove
+
+  , emptyBoardState
+  , defaultBoardState
+
+  , applyMove
+
+  , genMoves
+  , genMovesCastle
+  , genMovesQuiet
+  , genMovesPush
+  , genMovesPromote
+  , genMovesCapture
+  , genMovesCaptureEP
+  , genMovesCapturePromote
   ) where
 
 import Data.Bitboard
@@ -16,9 +36,7 @@ import Data.Piece
 import Data.Rotated
 import Data.Square
 
--- import Data.Bits
 import Data.Maybe
--- import Data.Word
 
 -- | Board State
 data BoardState
@@ -84,7 +102,7 @@ applyMove bs mv =
   , _fullmove = applyMoveFullmove mv $ fullmove bs
   }
 
--- | Replace insert/remove with toggle when confident working properly
+-- Replace insert/remove with toggle when confident working properly
 applyMoveBoard :: Move -> Board -> Board
 applyMoveBoard mv =
   case moveFlag mv of
@@ -153,7 +171,7 @@ applyMoveCastling mv =
 applyMoveSquareEP :: Move -> Maybe Square -> Maybe Square
 applyMoveSquareEP mv =
   case moveFlag mv of
-    Push -> \ _ -> Just (behind c sq)
+    Push -> \ _ -> Just (ahead c sq)
     _    -> \ _ -> Nothing
   where
     c = fst . moved $ mv
@@ -168,3 +186,32 @@ applyMoveFullmove :: Move -> Int -> Int
 applyMoveFullmove mv
   | fst (moved mv) == White = id
   | otherwise               = ((+) 1)
+
+-- |
+genMoves :: BoardState -> [Move]
+genMoves bs =
+  concat $ fmap (\ f -> f bs)
+  [genMovesCastle
+  , genMovesQuiet, genMovesPush, genMovesPromote
+  , genMovesCapture, genMovesCaptureEP, genMovesCapturePromote]
+
+genMovesCastle :: BoardState -> [Move]
+genMovesCastle bs = genCastle (board bs) (colourToMove bs) (castling bs)
+
+genMovesQuiet :: BoardState -> [Move]
+genMovesQuiet bs = genQuiet (board bs) (colourToMove bs)
+
+genMovesPush :: BoardState -> [Move]
+genMovesPush bs = genPush (board bs) (colourToMove bs)
+
+genMovesPromote :: BoardState -> [Move]
+genMovesPromote bs = genPromote (board bs) (colourToMove bs)
+
+genMovesCapture :: BoardState -> [Move]
+genMovesCapture bs = genCapture (board bs) (colourToMove bs)
+
+genMovesCaptureEP :: BoardState -> [Move]
+genMovesCaptureEP bs = genCaptureEP (board bs) (colourToMove bs) (squareEP bs)
+
+genMovesCapturePromote :: BoardState -> [Move]
+genMovesCapturePromote bs = genCapturePromote (board bs) (colourToMove bs)
