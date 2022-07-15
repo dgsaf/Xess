@@ -40,7 +40,7 @@ moveToAN mv =
   let
     sq  = origin mv
     sq' = target mv
-    p   = fst . moved $ mv
+    p   = snd . moved $ mv
     mp' = fmap snd . captured $ mv
     mf  = moveFlag mv
   in

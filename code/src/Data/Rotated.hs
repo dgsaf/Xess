@@ -15,7 +15,7 @@ import Data.Bitboard
 import Data.Square
 
 import Data.Array.IArray
-import Data.Array.Unboxed (UArray)
+-- import Data.Array.Unboxed (UArray)
 import Data.Bits
 import Data.Ix
 import Data.Function
@@ -141,22 +141,27 @@ visible r (sq, occ) = lineBetween sqR sqL
     (sqR, sqL) = (rotInvIx r ! toEnum i, rotInvIx r ! toEnum j)
 
 -- | Primitive Occupancy Bitboards
-buildVisibleLine :: Rot -> UArray (Square, Word8) Word64
+-- buildVisibleLine :: Rot -> UArray (Square, Word8) Word64
+buildVisibleLine :: Rot -> Array (Square, Word8) Word64
 buildVisibleLine r = listArray bs $ fmap f $ range bs
   where
     bs = ((minBound, fromInteger 0), (maxBound, fromInteger 63))
     f (sq, occTrim) = visible r (sq, untrim occTrim)
 
-visibleLineX :: UArray (Square, Word8) Word64
+-- visibleLineX :: UArray (Square, Word8) Word64
+visibleLineX :: Array (Square, Word8) Word64
 visibleLineX = buildVisibleLine RotY
 
-visibleLineY :: UArray (Square, Word8) Word64
+-- visibleLineY :: UArray (Square, Word8) Word64
+visibleLineY :: Array (Square, Word8) Word64
 visibleLineY = buildVisibleLine RotX
 
-visibleLineU :: UArray (Square, Word8) Word64
+-- visibleLineU :: UArray (Square, Word8) Word64
+visibleLineU :: Array (Square, Word8) Word64
 visibleLineU = buildVisibleLine RotV
 
-visibleLineV :: UArray (Square, Word8) Word64
+-- visibleLineV :: UArray (Square, Word8) Word64
+visibleLineV :: Array (Square, Word8) Word64
 visibleLineV = buildVisibleLine RotU
 
 -- | Visibility Bitboards
