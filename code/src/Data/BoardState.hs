@@ -10,113 +10,187 @@ import Data.Bitboard
 import Data.Board
 import Data.Castle
 import Data.Colour
+import Data.Move
+import Data.Pawn
 import Data.Piece
 import Data.Rotated
 import Data.Square
 
-import Control.Applicative
-import Control.Monad
-import Data.Bits
+-- import Data.Bits
 import Data.Maybe
-import Data.Word
+-- import Data.Word
 
 -- | Board State
 data BoardState
   = BoardState
   { _board :: Board
+  , _colourToMove :: Colour
   , _castling :: Castling
   , _squareEP :: Maybe Square
   , _halfmove :: Int
+  , _fullmove :: Int
   } deriving (Eq, Read, Show)
 
--- | Constructors
-
--- | Incremental Update
-
--- | Properties
-fullmove :: BoardState -> Int
-fullmove bs = (_halfmove bs + 1) `div` 2
+board :: BoardState -> Board
+board = _board
 
 colourToMove :: BoardState -> Colour
-colourToMove bs
-  | odd $ _halfmove bs = White
-  | otherwise          = Black
+colourToMove = _colourToMove
 
--- | Move
-newtype Move
-  = Move (Square, Square, Maybe Piece)
-  deriving (Eq, Read, Show)
+castling :: BoardState -> Castling
+castling = _castling
 
-src :: Move -> Square
-src (Move (sq, sq', mp)) = sq
+squareEP :: BoardState -> Maybe Square
+squareEP = _squareEP
 
-dst :: Move -> Square
-dst (Move (sq, sq', mp)) = sq'
+halfmove :: BoardState -> Int
+halfmove = _halfmove
 
-maybePromotion :: Move -> Maybe Piece
-maybePromotion (Move (sq, sq', mp)) = mp
+fullmove :: BoardState -> Int
+fullmove = _fullmove
+
+-- | Constructors
+emptyBoardState :: BoardState
+emptyBoardState =
+  BoardState
+  { _board = emptyBoard
+  , _colourToMove = White
+  , _castling = defaultCastling
+  , _squareEP = Nothing
+  , _halfmove = 0
+  , _fullmove = 1
+  }
+
+defaultBoardState :: BoardState
+defaultBoardState =
+  BoardState
+  { _board = defaultBoard
+  , _colourToMove = White
+  , _castling = defaultCastling
+  , _squareEP = Nothing
+  , _halfmove = 0
+  , _fullmove = 1
+  }
 
 -- |
-maybeCaptures :: Board -> Move -> Maybe Piece
-maybeCaptures b mv
-  | areHostile b (src mv) (dst mv) = fmap snd $ b !? dst mv
-  | otherwise                      = Nothing
+-- applyMove :: BoardState -> Move -> BoardState
+-- applyMove bs mv =
+--   case moveFlag mv of
+--     CastleWS        ->
+--     CastleWL        ->
+--     CastleBS        ->
+--     CastleBL        ->
+--     Quiet           ->
+--     Push            ->
+--     PromoteN        ->
+--     PromoteB        ->
+--     PromoteR        ->
+--     PromoteQ        ->
+--     Capture         ->
+--     CaptureEP       ->
+--     CapturePromoteN ->
+--     CapturePromoteB ->
+--     CapturePromoteR ->
+--     CapturePromoteQ ->
+--   where
+--     b = board bs
+--     c  = colourToMove bs
+--     c' = opposite c
+--     sq  = origin mv
+--     sq' = target mv
+--     mp  = fmap snd $ b !? sq
+--     mp' = fmap snd $ b !? sq'
 
-maybePushes :: Board -> Move -> Maybe Square
-maybePushes b mv
-  | isPawn && abs (n - n') == 16 = Just $ toEnum nEP
-  | otherwise                    = Nothing
+-- | Replace insert/remove with toggle when confident working properly
+applyMoveBoard :: Move -> Board -> Board
+applyMoveBoard mv =
+  case moveFlag mv of
+    CastleWS        ->
+      applyMoveBoardCastle (White, Short)
+    CastleWL        ->
+      applyMoveBoardCastle (White, Long)
+    CastleBS        ->
+      applyMoveBoardCastle (Black, Short)
+    CastleBL        ->
+      applyMoveBoardCastle (Black, Long)
+    Quiet           ->
+      insertPiece (c, p) sq' . removePiece (c, p) sq
+    Push            ->
+      insertPiece (c, p) sq' . removePiece (c, p) sq
+    PromoteN        ->
+      insertPiece (c, N) sq' . removePiece (c, P) sq
+    PromoteB        ->
+      insertPiece (c, B) sq' . removePiece (c, P) sq
+    PromoteR        ->
+      insertPiece (c, R) sq' . removePiece (c, P) sq
+    PromoteQ        ->
+      insertPiece (c, Q) sq' . removePiece (c, P) sq
+    Capture         ->
+      insertPiece (c, p) sq' . removePiece (c, p) sq
+      . removePiece (c', fromJust mp') sq'
+    CaptureEP       ->
+      insertPiece (c, P) sq' . removePiece (c, P) sq
+      . removePiece (c', P) (ahead c' sq')
+    CapturePromoteN ->
+      insertPiece (c, N) sq' . removePiece (c, P) sq
+      . removePiece (c', fromJust mp') sq'
+    CapturePromoteB ->
+      insertPiece (c, B) sq' . removePiece (c, P) sq
+      . removePiece (c', fromJust mp') sq'
+    CapturePromoteR ->
+      insertPiece (c, R) sq' . removePiece (c, P) sq
+      . removePiece (c', fromJust mp') sq'
+    CapturePromoteQ ->
+      insertPiece (c, Q) sq' . removePiece (c, P) sq
+      . removePiece (c', fromJust mp') sq'
   where
-    isPawn = maybe False (isP . snd) (b !? src mv)
-    n  = fromEnum $ src mv
-    n' = fromEnum $ dst mv
-    nEP = (n + n') `div` 2
+    (c, p) = moved mv
+    sq  = origin mv
+    c'  = opposite c
+    sq' = target mv
+    mp' = fmap snd $ captured mv
+    applyMoveBoardCastle (c, s) =
+      insertPiece (c, R) sqR' . removePiece (c, R) sqR
+      . insertPiece (c, K) sqK' . removePiece (c, K) sqK
+      where
+        (sqK, sqK') = castleSquaresK (c, s)
+        (sqR, sqR') = castleSquaresR (c, s)
 
-maybeCastles :: Board -> Move -> Maybe (Colour, Side)
-maybeCastles b mv = mfilter pred $ maybeCastleSquaresK (src mv, dst mv)
+applyMoveCastling :: (Colour, Piece) -> Move -> Castling -> Castling
+applyMoveCastling (c, p) mv ct =
+  case (hasNoCastle ct c, hasNoCastle ct c') of
+    (True,  True)  -> ct
+    (True,  False) ->
+    (False, True)  ->
+    (False, False) ->
   where
-    pred (c, s) = hasSquare (piece b (c, K)) . fst $ castleSquaresK (c, s)
+    c'  = opposite c
+    sq  = origin mv
+    sq' = target mv
+    mp' = fmap snd $ captured mv
 
--- | Moves
-mask :: Board -> Square -> (Colour, Piece) -> Word64
-mask b _  (c, K) = kingmask b c
-mask b sq (c, p) = checkmask b c .&. pinmask b c sq
+    pred = \ c -> canCastle (c, Short) || canCastle (c, Long)
 
-moves :: Board -> Square -> (Colour, Piece) -> Maybe Square -> Word64
-moves b sq (c, p) msqEP =
-  case (p, msqEP) of
-    (P, Just sqEP) -> mask b sq (c, p) .&.
-                      (scope b sq (c, P) .|. scopeEP b sq (c, P) sqEP)
-    (p, _)         -> mask b sq (c, p) .&. scope b sq (c, p)
+    movK = p == K
+    movR s = (p == R) && (sq == initialSquareR (c, s))
+    capR s = (maybe False ((==) R) mp') && (sq' == initialSquareR (c', s))
 
-castles :: Board -> Colour -> Castling -> Word64
-castles b c ct =
-  case (canCastle ct (c, Short), canCastle ct (c, Long)) of
-    (True, True)   -> scopeCastle b (c, Short) .|. scopeCastle b (c, Long)
-    (True, False)  -> scopeCastle b (c, Short)
-    (False, True)  -> scopeCastle b (c, Long)
-    (False, False) -> zeroBits
+    f
 
-legalMoves :: BoardState -> [(Square, Square)]
-legalMoves bs = moveList ++ castleList
-  where
-    b = _board bs
-    c = colourToMove bs
-
-    sqps =
-      mapMaybe
-        (\ sq -> liftA2 (,) (Just sq) (fmap snd $ b !? sq))
-        $ decodeSquares $ colour b c
-
-    moveList =
-      concat $ fmap
-        (\ (sq, p) ->
-           zip
-             (repeat sq)
-             (decodeSquares $ moves b sq (c, p) (_squareEP bs)))
-        sqps
-
-    castleList =
-      zip
-        (repeat $ initialSquareK c)
-        (decodeSquares (castles b c (_castling bs)))
+  case moveFlag mv of
+    CastleWS        -> movedK c
+    CastleWL        -> movedK c
+    CastleBS        -> movedK c
+    CastleBL        -> movedK c
+    Quiet           ->
+    Push            ->
+    PromoteN        ->
+    PromoteB        ->
+    PromoteR        ->
+    PromoteQ        ->
+    Capture         ->
+    CaptureEP       ->
+    CapturePromoteN ->
+    CapturePromoteB ->
+    CapturePromoteR ->
+    CapturePromoteQ ->

@@ -7,7 +7,8 @@ module Data.Castle
     ( Short
     , Long
     )
-  , initialSquareK
+  , initialSquareK, initialSquareR
+  , finalSquareK, finalSquareR
   , castleSquaresK, castleSquaresR
   , maybeCastleSquaresK
 
@@ -16,6 +17,7 @@ module Data.Castle
   , enable, disable
   , movedK, movedR
   , canCastle
+  , hasNoCastle
   ) where
 
 import Data.Colour
@@ -110,3 +112,6 @@ canCastle ct (White, Short) = _whiteS ct
 canCastle ct (White, Long)  = _whiteL ct
 canCastle ct (Black, Short) = _blackS ct
 canCastle ct (Black, Long)  = _blackL ct
+
+hasNoCastle :: Castling -> Colour -> Bool
+hasNoCastle ct c = not (canCastle ct (c, Short) || canCastle ct (c, Long))

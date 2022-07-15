@@ -30,9 +30,6 @@ module Data.Board
   , pinnedB, pinnedR, pinned
   , checkMask, kingMask, pinMask, mask
 
-  -- , scope
-  -- , scopeEP, scopeCastle
-
   , toPieceList, fromPieceList
   , toArray, fromArray
   ) where

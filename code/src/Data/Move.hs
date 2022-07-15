@@ -4,6 +4,23 @@ Description :
 -}
 module Data.Move
   ( MoveFlag
+    ( CastleWS
+    , CastleWL
+    , CastleBS
+    , CastleBL
+    , Quiet
+    , Push
+    , PromoteN
+    , PromoteB
+    , PromoteR
+    , PromoteQ
+    , Capture
+    , CaptureEP
+    , CapturePromoteN
+    , CapturePromoteB
+    , CapturePromoteR
+    , CapturePromoteQ
+    )
 
   , Move
   , origin, target, moveFlag, captured
@@ -67,8 +84,9 @@ data Move
   = Move
   { _origin :: Square
   , _target :: Square
-  , _moveFlag :: MoveFlag
+  , _moved :: (Colour, Piece)
   , _captured :: Maybe (Colour, Piece)
+  , _moveFlag :: MoveFlag
   } deriving (Eq, Read, Show)
 
 origin :: Move -> Square
@@ -77,11 +95,14 @@ origin = _origin
 target :: Move -> Square
 target = _target
 
-moveFlag :: Move -> MoveFlag
-moveFlag = _moveFlag
+moved :: Move -> (Colour, Piece)
+moved = _moved
 
 captured :: Move -> Maybe (Colour, Piece)
 captured = _captured
+
+moveFlag :: Move -> MoveFlag
+moveFlag = _moveFlag
 
 -- | Constructors
 mkCastle :: (Colour, Side) -> Move
@@ -89,8 +110,9 @@ mkCastle (c, s) =
   Move
   { _origin = sqK
   , _target = sqK'
-  , _moveFlag = flag
+  , _moved = (c, K)
   , _captured = Nothing
+  , _moveFlag = flag
   }
   where
     (sqK, sqK') = castleSquaresK (c, s)
@@ -101,31 +123,34 @@ mkCastle (c, s) =
         (Black, Short) -> CastleBS
         (Black, Long)  -> CastleBL
 
-mkQuiet :: Square -> Square -> Move
-mkQuiet sq sq' =
+mkQuiet :: Square -> Square -> (Colour, Piece) -> Move
+mkQuiet sq sq' (c, p) =
   Move
   { _origin = sq
   , _target = sq'
+  , _moved = (c, p)
+  , _captured = Nothing
   , _moveFlag = Quiet
-  , _captured = Nothing
   }
 
-mkPush :: Square -> Square -> Move
-mkPush sq sq' =
+mkPush :: Square -> Square -> Colour -> Move
+mkPush sq sq' c =
   Move
   { _origin = sq
   , _target = sq'
+  , _moved = (c, P)
+  , _captured = Nothing
   , _moveFlag = Push
-  , _captured = Nothing
   }
 
-mkPromote :: Square -> Square -> Piece -> Move
-mkPromote sq sq' pp =
+mkPromote :: Square -> Square -> Colour -> Piece -> Move
+mkPromote sq sq' c pp =
   Move
   { _origin = sq
   , _target = sq'
-  , _moveFlag = flag
+  , _moved = (c, P)
   , _captured = Nothing
+  , _moveFlag = flag
   }
   where
     flag =
@@ -136,13 +161,14 @@ mkPromote sq sq' pp =
         Q -> PromoteQ
         _ -> undefined
 
-mkCapture :: Square -> Square -> (Colour, Piece) -> Move
-mkCapture sq sq' (c, cp) =
+mkCapture :: Square -> Square -> (Colour, Piece) -> Piece -> Move
+mkCapture sq sq' (c, p) cp =
   Move
   { _origin = sq
   , _target = sq'
+  , _moved = (c, p)
+  , _captured = Just (opposite c, cp)
   , _moveFlag = Capture
-  , _captured = Just (c, cp)
   }
 
 mkCaptureEP :: Square -> Square -> Colour -> Move
@@ -150,17 +176,19 @@ mkCaptureEP sq sq' c =
   Move
   { _origin = sq
   , _target = sq'
+  , _moved = (c, P)
+  , _captured = Just (opposite c, P)
   , _moveFlag = CaptureEP
-  , _captured = Just (c, P)
   }
 
-mkCapturePromote :: Square -> Square -> (Colour, Piece) -> Piece -> Move
-mkCapturePromote sq sq' (c, cp) pp =
+mkCapturePromote :: Square -> Square -> Colour -> Piece -> Piece -> Move
+mkCapturePromote sq sq' c cp pp =
   Move
   { _origin = sq
   , _target = sq'
+  , _moved = (c, P)
+  , _captured = Just (opposite c, cp)
   , _moveFlag = flag
-  , _captured = Just (c, cp)
   }
   where
     flag =
@@ -172,13 +200,13 @@ mkCapturePromote sq sq' (c, cp) pp =
         _ -> undefined
 
 -- |
-mkPromotes :: Square -> Square -> [Move]
-mkPromotes sq sq' =
-  fmap (mkPromote sq sq') [N, B, R, Q]
+mkPromotes :: Square -> Square -> Colour -> [Move]
+mkPromotes sq sq' c =
+  fmap (mkPromote sq sq' c) [N, B, R, Q]
 
-mkCapturePromotes :: Square -> Square -> (Colour, Piece) -> [Move]
-mkCapturePromotes sq sq' (c, cp) =
-  fmap (mkCapturePromote sq sq' (c, cp)) [N, B, R, Q]
+mkCapturePromotes :: Square -> Square -> Colour -> Piece -> [Move]
+mkCapturePromotes sq sq' c cp =
+  fmap (mkCapturePromote sq sq' c cp) [N, B, R, Q]
 
 -- |
 genCastle :: Board -> Colour -> Castling -> [Move]
@@ -198,68 +226,98 @@ genQuiet :: Board -> Colour -> [Move]
 genQuiet b c = genQuietP b c ++ genQuietNonP b c
 
 genQuietP :: Board -> Colour -> [Move]
-genQuietP b c = filter pred . fmap f . decodeSquares $ w
+genQuietP b c = filter (ensureMask b) . fmap f . decodeSquares $ w
   where
     w = stepP b c .&. (complement $ rankPromote c)
-    f sq = mkQuiet (behind c sq) sq
-    pred mv = hasSquare (mask b (_origin mv)) (_target mv)
+    f sq = mkQuiet (behind c sq) sq (c, P)
 
 genQuietNonP :: Board -> Colour -> [Move]
 genQuietNonP b c = concat . fmap f . decodeSquares $ w
   where
     w = colour b c .&. (complement $ piece b (c, P))
-    f sq = fmap (mkQuiet sq) . decodeSquares
-           $ unoccupied b .&. attacksFrom b sq .&. mask b sq
+    f sq = fmap g . decodeSquares $ w'
+      where
+        w' = attacksFrom b sq .&. unoccupied b .&. mask b sq
+        g sq' = mkQuiet sq sq' (fromJust $ pieceAt b sq)
 
 genPush :: Board -> Colour -> [Move]
-genPush b c = filter pred . fmap f . decodeSquares $ w
+genPush b c = filter (ensureMask b) . fmap f . decodeSquares $ w
   where
     w = pushP b c
-    f sq = mkPush (behind c . behind c $ sq) sq
-    pred mv = hasSquare (mask b (_origin mv)) (_target mv)
+    f sq = mkPush (behind c . behind c $ sq) sq c
 
 genPromote :: Board -> Colour -> [Move]
-genPromote b c = filter pred . concat . fmap f . decodeSquares $ w
+genPromote b c = filter (ensureMask b) . concat . fmap f . decodeSquares $ w
   where
     w = stepP b c .&. rankPromote c
-    f sq = mkPromotes (behind c sq) sq
-    pred mv = hasSquare (mask b (_origin mv)) (_target mv)
+    f sq = mkPromotes (behind c sq) sq c
 
 genCapture :: Board -> Colour -> [Move]
 genCapture b c = genCaptureP b c ++ genCaptureNonP b c
 
 genCaptureP :: Board -> Colour -> [Move]
-genCaptureP b c = filter pred
+genCaptureP b c = filter (ensureMask b)
   $ (fmap fu . decodeSquares $ wu) ++ (fmap fv . decodeSquares $ wv)
   where
     wu = activePU b c .&. hostile b c .&. (complement $ rankPromote c)
     wv = activePV b c .&. hostile b c .&. (complement $ rankPromote c)
-    fu sq = mkCapture (behindU c sq) sq (fromJust $ b !? sq)
-    fv sq = mkCapture (behindV c sq) sq (fromJust $ b !? sq)
-    pred mv = hasSquare (mask b (_origin mv)) (_target mv)
+    fu sq' = mkCapture sq sq' (c, P) p'
+      where
+        sq = behindU c sq'
+        p' = snd . fromJust $ b !? sq'
+    fv sq' = mkCapture sq sq' (c, P) p'
+      where
+        sq = behindV c sq'
+        p' = snd . fromJust $ b !? sq'
 
 genCaptureNonP :: Board -> Colour -> [Move]
 genCaptureNonP b c = concat . fmap f . decodeSquares $ w
   where
     w = colour b c .&. (complement $ piece b (c, P))
-    f sq = fmap (\sq' -> mkCapture sq sq' (fromJust $ b !? sq'))
-           . decodeSquares $ hostile b c .&. attacksFrom b sq .&. mask b sq
+    f sq = fmap g . decodeSquares $ w'
+      where
+        w' = attacksFrom b sq .&. hostile b c .&. mask b sq
+        p = snd . fromJust $ b !? sq
+        g sq' = mkCapture sq sq' (c, p) (snd . fromJust $ b !? sq')
 
 genCaptureEP :: Board -> Colour -> Maybe Square -> [Move]
 genCaptureEP b c Nothing     = []
-genCaptureEP b c (Just sqEP) = filter pred . fmap f . decodeSquares $ w
+genCaptureEP b c (Just sqEP) =
+  filter (ensureMask b) . fmap f . decodeSquares $ w
   where
     w = piece b (c, P) .&. (backwardUV c (encodeSquare sqEP))
     f sq = mkCaptureEP sq sqEP c
-    pred mv = hasSquare (mask b (_origin mv)) (_target mv)
 
 genCapturePromote :: Board -> Colour -> [Move]
-genCapturePromote b c = filter pred
+genCapturePromote b c = filter (ensureMask b)
   $ (concat . fmap fu . decodeSquares $ wu)
   ++ (concat . fmap fv . decodeSquares $ wv)
   where
     wu = activePU b c .&. hostile b c .&. rankPromote c
     wv = activePV b c .&. hostile b c .&. rankPromote c
-    fu sq = mkCapturePromotes (behindU c sq) sq (fromJust $ b !? sq)
-    fv sq = mkCapturePromotes (behindV c sq) sq (fromJust $ b !? sq)
-    pred mv = hasSquare (mask b (_origin mv)) (_target mv)
+    fu sq' = mkCapturePromotes sq sq' c p'
+      where
+        sq = behindU c sq'
+        p' = snd . fromJust $ b !? sq'
+    fv sq' = mkCapturePromotes sq sq' c p'
+      where
+        sq = behindV c sq'
+        p' = snd . fromJust $ b !? sq'
+
+-- |
+isMovedPresent :: Board -> Move -> Bool
+isMovedPresent b mv = hasSquare (piece b (moved mv)) (origin mv)
+
+isCapturedPresent :: Board -> Move -> Bool
+isCapturedPresent b mv = maybe True pred (captured mv)
+  where
+    pred (c', p') = hasSquare (piece b (c', p')) (target mv)
+
+isCapturedOpposite :: Board -> Move -> Bool
+isCapturedOpposite b mv = maybe True pred (captured mv)
+  where
+    pred (c', p') = c' == opposite (fst $ moved mv)
+
+-- |
+ensureMask :: Board -> Move -> Bool
+ensureMask b mv = hasSquare (mask b (origin mv)) (target mv)
