@@ -23,7 +23,7 @@ module Data.Move
     )
 
   , Move
-  , origin, target, moveFlag, captured
+  , origin, target, moved, captured, moveFlag
 
   , mkCastle
   , mkQuiet
@@ -43,6 +43,13 @@ module Data.Move
   , genCapture
   , genCaptureEP
   , genCapturePromote
+
+  , ensureMovedPresent, ensureCapturedPresent
+  , ensureCapturedOpposite
+  , ensureMask
+
+  , isCapture
+  , isIrreversible
   ) where
 
 import Data.Castle
@@ -305,19 +312,25 @@ genCapturePromote b c = filter (ensureMask b)
         p' = snd . fromJust $ b !? sq'
 
 -- |
-isMovedPresent :: Board -> Move -> Bool
-isMovedPresent b mv = hasSquare (piece b (moved mv)) (origin mv)
+ensureMovedPresent :: Board -> Move -> Bool
+ensureMovedPresent b mv = hasSquare (piece b (moved mv)) (origin mv)
 
-isCapturedPresent :: Board -> Move -> Bool
-isCapturedPresent b mv = maybe True pred (captured mv)
+ensureCapturedPresent :: Board -> Move -> Bool
+ensureCapturedPresent b mv = maybe True pred (captured mv)
   where
     pred (c', p') = hasSquare (piece b (c', p')) (target mv)
 
-isCapturedOpposite :: Board -> Move -> Bool
-isCapturedOpposite b mv = maybe True pred (captured mv)
+ensureCapturedOpposite :: Board -> Move -> Bool
+ensureCapturedOpposite b mv = maybe True pred (captured mv)
   where
     pred (c', p') = c' == opposite (fst $ moved mv)
 
--- |
 ensureMask :: Board -> Move -> Bool
 ensureMask b mv = hasSquare (mask b (origin mv)) (target mv)
+
+-- |
+isCapture :: Move -> Bool
+isCapture = isJust . captured
+
+isIrreversible :: Move -> Bool
+isIrreversible mv = isCapture mv || (snd (moved mv) == P)

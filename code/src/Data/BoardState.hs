@@ -73,33 +73,16 @@ defaultBoardState =
   }
 
 -- |
--- applyMove :: BoardState -> Move -> BoardState
--- applyMove bs mv =
---   case moveFlag mv of
---     CastleWS        ->
---     CastleWL        ->
---     CastleBS        ->
---     CastleBL        ->
---     Quiet           ->
---     Push            ->
---     PromoteN        ->
---     PromoteB        ->
---     PromoteR        ->
---     PromoteQ        ->
---     Capture         ->
---     CaptureEP       ->
---     CapturePromoteN ->
---     CapturePromoteB ->
---     CapturePromoteR ->
---     CapturePromoteQ ->
---   where
---     b = board bs
---     c  = colourToMove bs
---     c' = opposite c
---     sq  = origin mv
---     sq' = target mv
---     mp  = fmap snd $ b !? sq
---     mp' = fmap snd $ b !? sq'
+applyMove :: BoardState -> Move -> BoardState
+applyMove bs mv =
+  bs
+  { _board = applyMoveBoard mv $ board bs
+  , _colourToMove = opposite $ colourToMove bs
+  , _castling = applyMoveCastling mv $ castling bs
+  , _squareEP = applyMoveSquareEP mv $ squareEP bs
+  , _halfmove = applyMoveHalfmove mv $ halfmove bs
+  , _fullmove = applyMoveFullmove mv $ fullmove bs
+  }
 
 -- | Replace insert/remove with toggle when confident working properly
 applyMoveBoard :: Move -> Board -> Board
@@ -156,41 +139,32 @@ applyMoveBoard mv =
         (sqK, sqK') = castleSquaresK (c, s)
         (sqR, sqR') = castleSquaresR (c, s)
 
-applyMoveCastling :: (Colour, Piece) -> Move -> Castling -> Castling
-applyMoveCastling (c, p) mv ct =
-  case (hasNoCastle ct c, hasNoCastle ct c') of
-    (True,  True)  -> ct
-    (True,  False) ->
-    (False, True)  ->
-    (False, False) ->
+applyMoveCastling :: Move -> Castling -> Castling
+applyMoveCastling mv =
+  maybe id (f (target mv)) (captured mv) . f (origin mv) (moved mv)
   where
-    c'  = opposite c
-    sq  = origin mv
-    sq' = target mv
-    mp' = fmap snd $ captured mv
+    f sq (c, K) = movedK c
+    f sq (c, R)
+      | sq == initialSquareR (c, Short) = movedR (c, Short)
+      | sq == initialSquareR (c, Long)  = movedR (c, Long)
+      | otherwise                       = id
+    f sq (c, _) = id
 
-    pred = \ c -> canCastle (c, Short) || canCastle (c, Long)
-
-    movK = p == K
-    movR s = (p == R) && (sq == initialSquareR (c, s))
-    capR s = (maybe False ((==) R) mp') && (sq' == initialSquareR (c', s))
-
-    f
-
+applyMoveSquareEP :: Move -> Maybe Square -> Maybe Square
+applyMoveSquareEP mv =
   case moveFlag mv of
-    CastleWS        -> movedK c
-    CastleWL        -> movedK c
-    CastleBS        -> movedK c
-    CastleBL        -> movedK c
-    Quiet           ->
-    Push            ->
-    PromoteN        ->
-    PromoteB        ->
-    PromoteR        ->
-    PromoteQ        ->
-    Capture         ->
-    CaptureEP       ->
-    CapturePromoteN ->
-    CapturePromoteB ->
-    CapturePromoteR ->
-    CapturePromoteQ ->
+    Push -> \ _ -> Just (behind c sq)
+    _    -> \ _ -> Nothing
+  where
+    c = fst . moved $ mv
+    sq  = origin mv
+
+applyMoveHalfmove :: Move -> Int -> Int
+applyMoveHalfmove mv
+  | isIrreversible mv = \ _  -> 0
+  | otherwise         = ((+) 1)
+
+applyMoveFullmove :: Move -> Int -> Int
+applyMoveFullmove mv
+  | fst (moved mv) == White = id
+  | otherwise               = ((+) 1)
