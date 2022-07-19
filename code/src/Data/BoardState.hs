@@ -15,6 +15,7 @@ module Data.BoardState
   , defaultBoardState
 
   , applyMove
+  , applySkip
 
   , genMovesCastle
   , genMovesQuiet
@@ -24,15 +25,6 @@ module Data.BoardState
   , genMovesCaptureEP
   , genMovesCapturePromote
   , genMoves, genMovesDormant, genMovesTactical
-
-  , genStatesCastle
-  , genStatesQuiet
-  , genStatesPush
-  , genStatesPromote
-  , genStatesCapture
-  , genStatesCaptureEP
-  , genStatesCapturePromote
-  , genStates, genStatesDormant, genStatesTactical
 
   , isCheckmate
   , isStalemate
@@ -109,12 +101,26 @@ applyMove :: BoardState -> Move -> BoardState
 applyMove bs mv =
   bs
   { _board = applyMoveBoard mv $ board bs
-  , _colourToMove = opposite $ colourToMove bs
+  , _colourToMove = opposite . colourToMove $ bs
   , _castling = applyMoveCastling mv $ castling bs
   , _squareEP = applyMoveSquareEP mv $ squareEP bs
   , _halfmove = applyMoveHalfmove mv $ halfmove bs
-  , _fullmove = applyMoveFullmove mv $ fullmove bs
+  , _fullmove = nextFullmove bs
   }
+
+applySkip :: BoardState -> BoardState
+applySkip bs =
+  bs
+  { _colourToMove = opposite . colourToMove $ bs
+  , _squareEP = Nothing
+  , _halfmove = halfmove bs + 1
+  , _fullmove = nextFullmove bs
+  }
+
+nextFullmove :: BoardState -> Int
+nextFullmove bs
+  | colourToMove bs == Black = fullmove bs + 1
+  | otherwise                = fullmove bs
 
 -- Replace insert/remove with toggle when confident working properly
 applyMoveBoard :: Move -> Board -> Board
@@ -196,11 +202,6 @@ applyMoveHalfmove mv
   | isIrreversible mv = \ _  -> 0
   | otherwise         = ((+) 1)
 
-applyMoveFullmove :: Move -> Int -> Int
-applyMoveFullmove mv
-  | fst (moved mv) == White = id
-  | otherwise               = ((+) 1)
-
 -- |
 genMovesCastle :: BoardState -> [Move]
 genMovesCastle bs = genCastle (board bs) (colourToMove bs) (castling bs)
@@ -252,38 +253,6 @@ genMovesTactical bs = concat $ fmap (\ f -> f bs) fs
          , genMovesCaptureEP
          , genMovesCapturePromote
          ]
-
--- |
-genStatesCastle :: BoardState -> [BoardState]
-genStatesCastle bs = fmap (applyMove bs) $ genMovesCastle bs
-
-genStatesQuiet :: BoardState -> [BoardState]
-genStatesQuiet bs = fmap (applyMove bs) $ genMovesQuiet bs
-
-genStatesPush :: BoardState -> [BoardState]
-genStatesPush bs = fmap (applyMove bs) $ genMovesPush bs
-
-genStatesPromote :: BoardState -> [BoardState]
-genStatesPromote bs = fmap (applyMove bs) $ genMovesPromote bs
-
-genStatesCapture :: BoardState -> [BoardState]
-genStatesCapture bs = fmap (applyMove bs) $ genMovesCapture bs
-
-genStatesCaptureEP :: BoardState -> [BoardState]
-genStatesCaptureEP bs = fmap (applyMove bs) $ genMovesCaptureEP bs
-
-genStatesCapturePromote :: BoardState -> [BoardState]
-genStatesCapturePromote bs = fmap (applyMove bs) $ genMovesCapturePromote bs
-
--- |
-genStates :: BoardState -> [BoardState]
-genStates bs = fmap (applyMove bs) $ genMoves bs
-
-genStatesDormant :: BoardState -> [BoardState]
-genStatesDormant bs = fmap (applyMove bs) $ genMovesDormant bs
-
-genStatesTactical :: BoardState -> [BoardState]
-genStatesTactical bs = fmap (applyMove bs) $ genMovesTactical bs
 
 -- |
 isCheckmate :: BoardState -> Bool
